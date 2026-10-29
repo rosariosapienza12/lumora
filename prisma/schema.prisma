@@ -1,0 +1,129 @@
+// Lumora database schema.
+// Security notes:
+// - Secrets (session tokens, email tokens, recovery codes) are stored only as SHA-256 hashes.
+// - Passwords are stored as argon2id hashes.
+// - TOTP secrets are encrypted at rest with AES-256-GCM (see src/lib/crypto.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountKind {
+  EDUCATION
+  BUSINESS
+  STUDENT
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+enum Visibility {
+  PRIVATE
+  LINK
+}
+
+model User {
+  id               String      @id @default(cuid())
+  email            String      @unique
+  name             String
+  passwordHash     String
+  kind             AccountKind
+  emailVerifiedAt  DateTime?
+  totpSecretEnc    String?
+  totpEnabledAt    DateTime?
+  // Last accepted TOTP time step: a code can never be used twice.
+  totpLastStep     Int?
+  failedLoginCount Int         @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  sessions      Session[]
+  recoveryCodes RecoveryCode[]
+  emailTokens   EmailToken[]
+  presentations Presentation[]
+  auditLogs     AuditLog[]
+}
+
+model Session {
+  // SHA-256 of the random token held in the browser cookie.
+  id                String   @id
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  twoFactorPending  Boolean  @default(false)
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  ip                String?
+  userAgent         String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RecoveryCode {
+  id       String    @id @default(cuid())
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash String
+  usedAt   DateTime?
+
+  @@index([userId])
+}
+
+model EmailToken {
+  // SHA-256 of the token sent by email.
+  id        String         @id
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      EmailTokenType
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([userId, type])
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  ip        String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Presentation {
+  id                String     @id @default(cuid())
+  ownerId           String
+  owner             User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title             String
+  // Validated document (pages, elements, animations, interactions). See src/lib/editor/schema.ts.
+  content           Json
+  visibility        Visibility @default(PRIVATE)
+  // Unguessable public slug, set when published.
+  shareSlug         String?    @unique
+  sharePasswordHash String?
+  publishedAt       DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([ownerId, deletedAt, updatedAt])
+}

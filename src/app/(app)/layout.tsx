@@ -1,0 +1,32 @@
+import Link from "next/link";
+import { requireUser } from "@/lib/auth/session";
+import { logoutAction } from "../(auth)/actions";
+import { Logo } from "@/components/ui";
+
+export default async function AppLayout({ children }: LayoutProps<"/">) {
+  const user = await requireUser();
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="flex items-center gap-6 border-b border-line bg-paper px-5 py-3">
+        <Logo />
+        <nav className="flex gap-1 text-sm font-medium">
+          <Link href="/dashboard" className="rounded-full px-3 py-1.5 hover:bg-mist">
+            Le mie presentazioni
+          </Link>
+          <Link href="/impostazioni" className="rounded-full px-3 py-1.5 hover:bg-mist">
+            Sicurezza
+          </Link>
+        </nav>
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          <span className="hidden text-ink-soft sm:inline">{user.name}</span>
+          <form action={logoutAction}>
+            <button type="submit" className="rounded-full px-3 py-1.5 font-medium hover:bg-mist">
+              Esci
+            </button>
+          </form>
+        </div>
+      </header>
+      <main className="flex-1 px-5 py-8">{children}</main>
+    </div>
+  );
+}

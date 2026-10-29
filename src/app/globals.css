@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+:root {
+  --mist: #f4f2ff;
+  --paper: #ffffff;
+  --ink: #1d1a3a;
+  --ink-soft: #5d5a7a;
+  --line: #dedaf3;
+  --violet: #5b3df5;
+  --violet-deep: #4326d6;
+  --amber: #ffb547;
+  --mint: #18a689;
+  --danger: #d22f4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mist: #15132b;
+    --paper: #1e1b3a;
+    --ink: #efedff;
+    --ink-soft: #aaa6cc;
+    --line: #34305a;
+    --violet: #8c76ff;
+    --violet-deep: #a594ff;
+    --amber: #ffc46b;
+    --mint: #3fd1b1;
+    --danger: #ff6b86;
+  }
+}
+
+@theme inline {
+  --color-mist: var(--mist);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-violet: var(--violet);
+  --color-violet-deep: var(--violet-deep);
+  --color-amber: var(--amber);
+  --color-mint: var(--mint);
+  --color-danger: var(--danger);
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-instrument);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--mist);
+  color: var(--ink);
+  font-family: var(--font-instrument), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--violet);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Hotspot: the brand's signature element. */
+.hotspot {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #3a2500;
+  font-weight: 700;
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--amber) 30%, transparent);
+}
+
+.hotspot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  border: 2px solid var(--amber);
+  animation: hotspot-pulse 2.2s ease-out infinite;
+}
+
+@keyframes hotspot-pulse {
+  from { transform: scale(0.8); opacity: 0.9; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+/* Glass: a slowly drifting light field behind frosted panels. */
+.glass-sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: var(--mist);
+}
+.glass-sky span {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(90px);
+  opacity: 0.55;
+  animation: sky-drift 26s ease-in-out infinite alternate;
+}
+@keyframes sky-drift {
+  to { translate: 6vw -4vh; scale: 1.15; }
+}
+.glass {
+  background: color-mix(in oklab, var(--paper) 58%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border: 1px solid color-mix(in oklab, white 55%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 60%, transparent), 0 24px 60px -30px rgba(29, 26, 58, 0.35);
+}
+.glass-dark {
+  background: rgba(12, 9, 34, 0.62);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  backdrop-filter: blur(26px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 30px 80px -30px rgba(20, 10, 60, 0.6);
+}
+@media (prefers-color-scheme: dark) {
+  .glass {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 24px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+  .glass-sky span { opacity: 0.4; }
+}
+
+/* Planet tour */
+.tour-orbit {
+  animation: tour-orbit 9s linear infinite;
+}
+@keyframes tour-orbit {
+  from { transform: rotateX(72deg) rotate(0deg); }
+  to { transform: rotateX(72deg) rotate(360deg); }
+}
+@property --tour-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+/* Light running around the demo card's border. */
+.tour-demo-border {
+  background: conic-gradient(from var(--tour-angle), transparent 0 55%, var(--glow) 75%, #fff 80%, var(--glow) 85%, transparent 100%), rgba(255, 255, 255, 0.08);
+  animation: tour-border 4s linear infinite;
+}
+@keyframes tour-border {
+  to { --tour-angle: 360deg; }
+}
+
+/* Hero solar system */
+.solar-planet .solar-body {
+  box-shadow: 0 0 10px rgba(255, 210, 140, 0.12);
+}
+.solar-planet[data-lit] .solar-body {
+  box-shadow: 0 0 0 2px rgba(255, 233, 176, 0.9), 0 0 22px 6px rgba(255, 181, 71, 0.75), 0 0 60px 14px rgba(140, 118, 255, 0.35);
+}
+.solar-label {
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.3s, background-color 0.3s, opacity 0.3s;
+}
+.solar-planet[data-lit] .solar-label,
+.solar-planet:hover .solar-label,
+.solar-planet:focus-visible .solar-label {
+  color: #fff6dc;
+  background: rgba(255, 181, 71, 0.18);
+}
+/* Small stages: only the lit or hovered planet shows its name. */
+.solar-stage[data-compact] .solar-label {
+  opacity: 0;
+}
+.solar-stage[data-compact] .solar-planet[data-lit] .solar-label,
+.solar-stage[data-compact] .solar-planet:hover .solar-label,
+.solar-stage[data-compact] .solar-planet:focus-visible .solar-label {
+  opacity: 1;
+}
+.solar-burst {
+  pointer-events: none;
+  opacity: 0;
+}
+.solar-planet[data-burst] .solar-burst {
+  animation: solar-burst 0.9s 0.7s ease-out both;
+}
+.solar-skeleton {
+  display: block;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.06) 30%, rgba(255, 214, 140, 0.22) 50%, rgba(255, 255, 255, 0.06) 70%) 0 0 / 250% 100%;
+  animation: solar-shimmer 1.1s linear infinite;
+}
+@keyframes solar-burst {
+  0% { opacity: 0.9; box-shadow: 0 0 0 0 rgba(255, 214, 140, 0.9); }
+  100% { opacity: 0; box-shadow: 0 0 0 28px rgba(255, 181, 71, 0); }
+}
+@keyframes solar-shimmer { to { background-position: -250% 0; } }
+.solar-star {
+  animation: solar-twinkle ease-in-out infinite alternate;
+  opacity: 0.25;
+}
+.solar-corona {
+  background: radial-gradient(circle, rgba(255, 181, 71, 0.45), rgba(255, 122, 26, 0.12) 45%, transparent 70%);
+  animation: solar-breathe 4s ease-in-out infinite;
+}
+.solar-flare {
+  background: conic-gradient(from 0deg, transparent, rgba(255, 214, 120, 0.5), transparent 20%, rgba(255, 160, 60, 0.45), transparent 45%, rgba(255, 214, 120, 0.4), transparent 70%, rgba(255, 140, 40, 0.5), transparent);
+  filter: blur(6px);
+  animation: solar-spin 18s linear infinite;
+}
+
+@keyframes solar-spin { to { rotate: 360deg; } }
+
+@keyframes solar-twinkle { to { opacity: 1; } }
+@keyframes solar-breathe {
+  50% { scale: 1.12; opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotspot::after { animation: none; }
+  .solar-star, .solar-corona, .solar-flare, .solar-skeleton, .solar-burst, .glass-sky span, .tour-orbit, .tour-demo-border { animation: none !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
