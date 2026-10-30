@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import QRCode from "qrcode";
 import type { Element, ElementType, PresentationDoc } from "@/lib/editor/schema";
 import { SlideThumb } from "@/components/slide/element-view";
+import { LayoutPicker } from "./layout-picker";
 import { Player } from "@/components/player/player";
 import { Logo } from "@/components/ui";
 import { Canvas } from "./canvas";
@@ -200,9 +201,7 @@ export function Editor(props: {
               </li>
             ))}
           </ol>
-          <button onClick={() => dispatch({ type: "add-page" })} className="rounded-xl border border-dashed border-line py-3 text-sm font-medium hover:border-violet">
-            + Nuova pagina
-          </button>
+          <LayoutPicker theme={state.doc.settings?.theme} onPick={(layout) => dispatch({ type: "add-page", layout })} />
           <div className="mt-auto flex flex-wrap gap-1 text-xs">
             <button onClick={() => dispatch({ type: "move-page", pageId: page.id, dir: -1 })} disabled={pageIndex === 0} className="rounded-full border border-line px-2 py-1 disabled:opacity-30">
               Su

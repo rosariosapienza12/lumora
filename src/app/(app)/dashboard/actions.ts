@@ -1,5 +1,6 @@
 "use server";
 
+import { DEFAULT_THEME, isThemeId } from "@/lib/editor/themes";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -32,7 +33,8 @@ export async function createPresentationAction(formData: FormData) {
   const template = formData.get("template");
   const id = isTemplateId(template) ? template : "vuota";
   const title = id === "vuota" ? "Presentazione senza titolo" : (TEMPLATES.find((t) => t.id === id)?.name ?? "Presentazione");
-  const content = buildTemplate(id, title);
+  const theme = formData.get("theme");
+  const content = buildTemplate(id, title, isThemeId(theme) ? theme : DEFAULT_THEME);
   if (!(await canAdd(user.id, docBytes(content)))) throw new Error("Limit reached");
 
   const p = await db.presentation.create({

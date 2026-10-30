@@ -32,7 +32,7 @@ export const FEATURES: Feature[] = [
     id: "modelli", kind: "gold", planet: "Aurum", title: "Modelli",
     body: "Parti da una lezione, un pitch o un quiz già impostati.",
     tagline: "Non partire dal foglio bianco: scegli un modello già impaginato e animato, poi fallo tuo.",
-    tools: ["Lezione interattiva", "Pitch in 5 pagine", "Quiz a domande", "Pagina vuota", "Anteprima prima di scegliere", "Duplica presentazione"],
+    tools: ["11 temi grafici", "8 modelli", "17 layout di pagina", "Cambio tema in un clic", "Anteprima prima di scegliere", "Duplica presentazione"],
     orbit: 0.2, size: 0.03, period: 9, phase: 0.5, glow: "#ffc94d",
   },
   {

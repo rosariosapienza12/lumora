@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemePicker } from "@/components/theme-picker";
+import { DEFAULT_THEME } from "@/lib/editor/themes";
 import type { ReactNode } from "react";
 import type { Element, Interaction, Page, PresentationDoc } from "@/lib/editor/schema";
 import { EMPHASIS_ANIMATIONS, ENTER_ANIMATIONS, FONT_FAMILY, FONT_LABELS, FONTS, TRANSITIONS, type FontId } from "@/lib/editor/schema";
@@ -158,6 +160,10 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
           <button onClick={() => dispatch({ type: "transition-all", transition: page.transition })} className={chip}>
             Usa questa transizione per tutte le pagine
           </button>
+        </Section>
+        <Section title="Tema">
+          <p className="text-xs text-ink-soft">Cambia colori e caratteri di tutte le pagine. I colori scelti a mano restano come sono; puoi sempre annullare.</p>
+          <ThemePicker compact value={doc.settings?.theme ?? DEFAULT_THEME} onChange={(theme) => dispatch({ type: "apply-theme", theme })} />
         </Section>
         <Section title="Presentazione">
           <Row label="Avanza da sola dopo (secondi, 0 = mai)">

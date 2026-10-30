@@ -6,6 +6,7 @@
 
 ## Cosa fa
 
+- **Temi e layout**: 11 temi grafici coordinati (colori e caratteri), 8 modelli di presentazione e 17 layout di pagina già impaginati e animati; il tema si cambia in un clic su tutta la presentazione.
 - **Editor visuale** a tre colonne: pagine, tela e pannello delle proprietà, con 32 font, colori pieni o sfumature, ombre, contorni, livelli, allineamenti, annulla/ripeti e scorciatoie da tastiera.
 - **Interattività**: hotspot luminosi, finestre di approfondimento, contenuti da rivelare, pulsanti che portano ad altre pagine (quiz e storie a bivi), link esterni con conferma.
 - **Animazioni e transizioni**: 7 effetti di ingresso, 4 continui, dissolvenza, scorrimento, zoom e rotazione 3D tra le pagine. Rispettano `prefers-reduced-motion`.
@@ -20,6 +21,10 @@
 | Dashboard | Editor |
 | --- | --- |
 | ![Dashboard delle presentazioni](docs/screenshots/dashboard.png) | ![Editor di Lumora](docs/screenshots/editor.png) |
+
+| Temi e modelli | Layout di pagina |
+| --- | --- |
+| ![Scelta del tema e del modello](docs/screenshots/temi.png) | ![Menu dei layout di pagina](docs/screenshots/layout.png) |
 
 ## Sicurezza
 

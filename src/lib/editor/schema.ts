@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { THEME_IDS } from "./themes";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -228,6 +229,8 @@ export const page = z.object({
 export const settings = z.object({
   /** Seconds before moving to the next page automatically; 0 = off. */
   autoAdvance: z.number().int().min(0).max(300),
+  /** Visual theme the presentation was built with (used to restyle it). */
+  theme: z.enum(THEME_IDS).optional(),
 });
 
 export const documentSchema = z

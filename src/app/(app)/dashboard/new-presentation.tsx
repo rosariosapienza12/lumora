@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { buildTemplate, TEMPLATES, type TemplateId } from "@/lib/editor/templates";
 import { SlideThumb } from "@/components/slide/element-view";
 import { Button } from "@/components/ui";
+import { ThemePicker } from "@/components/theme-picker";
+import { DEFAULT_THEME, type ThemeId } from "@/lib/editor/themes";
 import { createPresentationAction } from "./actions";
 
 function CreateButton() {
@@ -21,8 +23,9 @@ function CreateButton() {
 export function NewPresentation() {
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<TemplateId>("vuota");
-  // Preview pages, built once on the client.
-  const previews = useMemo(() => Object.fromEntries(TEMPLATES.map((t) => [t.id, buildTemplate(t.id, t.name)])), []);
+  const [theme, setTheme] = useState<ThemeId>(DEFAULT_THEME);
+  // Preview pages, rebuilt on the client when the theme changes.
+  const previews = useMemo(() => Object.fromEntries(TEMPLATES.map((t) => [t.id, buildTemplate(t.id, t.name, theme)])), [theme]);
 
   return (
     <>
@@ -46,15 +49,20 @@ export function NewPresentation() {
               animate={{ y: 0, scale: 1 }}
               exit={{ y: 12, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="flex max-h-[90vh] w-full max-w-3xl flex-col gap-5 overflow-auto rounded-3xl bg-paper p-6"
+              className="flex max-h-[90vh] w-full max-w-4xl flex-col gap-5 overflow-auto rounded-3xl bg-paper p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <div>
                 <h2 id="new-title" className="font-display text-2xl font-bold">
                   Scegli da dove partire
                 </h2>
-                <p className="mt-1 text-sm text-ink-soft">Ogni modello si modifica liberamente: testi, colori, animazioni e interazioni.</p>
+                <p className="mt-1 text-sm text-ink-soft">Scegli un tema e un modello: si modificano liberamente, e il tema si può cambiare anche dopo nell&apos;editor.</p>
               </div>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Tema</h3>
+                <ThemePicker name="theme" value={theme} onChange={setTheme} />
+              </div>
+              <h3 className="-mb-2 text-sm font-semibold">Modello</h3>
               <fieldset className="grid gap-3 sm:grid-cols-2">
                 <legend className="sr-only">Modello</legend>
                 {TEMPLATES.map((t) => {

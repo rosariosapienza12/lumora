@@ -1,5 +1,7 @@
 import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
+import { buildLayout, type LayoutId } from "@/lib/editor/layouts";
+import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
 
 export type EditorState = {
   doc: PresentationDoc;
@@ -14,7 +16,7 @@ export type EditorState = {
 export type Action =
   | { type: "select"; id: string | null }
   | { type: "goto-page"; pageId: string }
-  | { type: "add-page" }
+  | { type: "add-page"; layout?: LayoutId }
   | { type: "duplicate-page"; pageId: string }
   | { type: "delete-page"; pageId: string }
   | { type: "move-page"; pageId: string; dir: -1 | 1 }
@@ -28,6 +30,7 @@ export type Action =
   | { type: "paste"; element: Element }
   | { type: "transition-all"; transition: Transition }
   | { type: "settings"; autoAdvance: number }
+  | { type: "apply-theme"; theme: ThemeId }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -117,7 +120,8 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "goto-page":
       return { ...state, pageId: action.pageId, selectedId: null };
     case "add-page": {
-      const p = blankPage(`Pagina ${state.doc.pages.length + 1}`);
+      // A layout is drawn in the presentation's theme; without one, an empty page.
+      const p = action.layout ? buildLayout(action.layout, getTheme(state.doc.settings?.theme)) : blankPage(`Pagina ${state.doc.pages.length + 1}`);
       const idx = state.doc.pages.findIndex((x) => x.id === page.id);
       const pages = [...state.doc.pages];
       pages.splice(idx + 1, 0, p);
@@ -216,7 +220,9 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "transition-all":
       return commit(state, { ...state.doc, pages: state.doc.pages.map((p) => ({ ...p, transition: action.transition })) });
     case "settings":
-      return commit(state, { ...state.doc, settings: { autoAdvance: Math.max(0, Math.min(300, Math.round(action.autoAdvance))) } });
+      return commit(state, { ...state.doc, settings: { ...state.doc.settings, autoAdvance: Math.max(0, Math.min(300, Math.round(action.autoAdvance))) } });
+    case "apply-theme":
+      return commit(state, applyTheme(state.doc, action.theme));
     case "undo": {
       const prev = state.past.at(-1);
       if (!prev) return state;

@@ -39,7 +39,10 @@ ${featureGuide}
 
 Percorsi utili:
 - Registrazione: /registrati. Accesso: /accedi. Password dimenticata: /password-dimenticata.
-- Dashboard con le tue presentazioni: /dashboard. Da lì "Nuova presentazione" apre la scelta del modello.
+- Dashboard con le tue presentazioni: /dashboard. Da lì "Nuova presentazione" apre la scelta di tema e modello.
+- Temi (11): Notte stellata, Minimal, Aziendale, Accademico, Lavagna, Foresta, Oceano, Tramonto, Pastello, Neon, Retrò. Si cambiano anche dopo, dall'editor: clic su un punto vuoto della pagina, sezione Tema (i colori scelti a mano restano).
+- Modelli (8): Vuota, Lezione interattiva, Pitch, Quiz, Relazione, Storia a bivi, Portfolio, Workshop.
+- Layout di pagina (17), dal pulsante "+ Nuova pagina" dell'editor: copertina, indice, inizio sezione, chiusura, titolo e testo, due e tre colonne, immagine e testo, citazione, elenco puntato, numeri in evidenza, linea del tempo, esplora con hotspot, schede da scoprire, domanda a risposta, bivio, contatti.
 - Editor: si apre cliccando una presentazione. A sinistra le pagine, al centro la tela, a destra il pannello delle proprietà (font tra oltre 30, colori e sfumature, ombre, bordi, animazioni, interazioni).
 - Ogni pianeta della homepage è una scorciatoia: "Crea con questa funzione" apre una nuova presentazione già impostata su quella funzione.
 - Condividi: dall'editor, pulsante Condividi: link pubblico, password facoltativa, QR code e codice per incorporare.
