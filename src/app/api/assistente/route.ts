@@ -3,7 +3,8 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
-import { offlineAnswer, pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
+import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
+import { brainAnswer } from "@/lib/assistant/brain";
 
 const MODEL = "claude-opus-5-5";
 
@@ -11,7 +12,13 @@ const bodySchema = z.object({
   // Where the visitor is: a plain site path, never a full URL.
   page: z.string().max(80).regex(/^\/[\w\-/#]*$/).default("/"),
   messages: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1200) }))
+    .array(
+      z.discriminatedUnion("role", [
+        z.object({ role: z.literal("user"), content: z.string().trim().min(1).max(1200) }),
+        // Zib's own earlier answers can be longer (outlines, lists).
+        z.object({ role: z.literal("assistant"), content: z.string().trim().min(1).max(4000) }),
+      ]),
+    )
     .min(1)
     .max(16)
     .refine((m) => m[0].role === "user" && m[m.length - 1].role === "user", "La conversazione deve iniziare e finire con l'utente."),
@@ -48,7 +55,7 @@ let client: Anthropic | null = null;
 export async function POST(request: Request) {
   const ip = await clientIp();
   if (!(await rateLimit(`assistant:${ip}`, 30, 60 * 60))) return error("Hai fatto molte domande: riprova tra un po'.", 429);
-  if (Number(request.headers.get("content-length") ?? 0) > 32 * 1024) return error("Messaggio troppo lungo.", 413);
+  if (Number(request.headers.get("content-length") ?? 0) > 64 * 1024) return error("Messaggio troppo lungo.", 413);
 
   let parsed;
   try {
@@ -59,9 +66,9 @@ export async function POST(request: Request) {
   if (!parsed.success) return error("Richiesta non valida.", 400);
   const { messages, page } = parsed.data;
 
-  // Without a key the assistant answers from its on-board guide.
+  // Without a key the assistant answers with its on-board brain.
   if (!process.env.ANTHROPIC_API_KEY) {
-    const answer = offlineAnswer(messages[messages.length - 1].content);
+    const answer = brainAnswer(messages);
     return textStream(async (write) => write(answer));
   }
 

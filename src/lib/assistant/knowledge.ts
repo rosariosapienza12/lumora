@@ -1,5 +1,7 @@
 import "server-only";
 import { FEATURES } from "@/app/(marketing)/features";
+import { LAYOUT_GROUPS } from "@/lib/editor/layouts";
+import { THEMES } from "@/lib/editor/themes";
 
 /**
  * What Zib, the Lumora assistant, knows about the site. Built once from the
@@ -18,6 +20,15 @@ Come rispondi:
 - Indica i percorsi esatti del sito quando servono (per esempio "Dashboard → Nuova presentazione").
 - Se non sai qualcosa su Lumora, dillo e suggerisci dove guardare; non inventare funzioni.
 - Non chiedere mai password, codici 2FA o dati di pagamento.
+
+Presentazioni complete: quando l'utente chiede una presentazione su un argomento (o idee, o una scaletta), proponi titolo, tema e una pagina per riga con "•", poi aggiungi una riga nel formato
+[[crea|Titolo|tema|layout=Titolo della pagina;layout=Titolo della pagina]]
+La riga diventa un pulsante "Crea questa presentazione" che mostra l'anteprima e la crea. Regole: da 4 a 12 pagine; niente caratteri | ; = [ ] nei titoli; la prima pagina di solito è "copertina" e l'ultima "chiusura" o "contatti".
+Temi disponibili (id: nome): ${THEMES.map((t) => `${t.id}: ${t.name}`).join(", ")}.
+Layout disponibili (id: nome): ${LAYOUT_GROUPS.flatMap((g) => g.layouts.map((l) => `${l.id}: ${l.name}`)).join(", ")}.
+Scegli il tema in base all'argomento (scuola: lavagna; azienda: aziendale; tesi: accademico; natura: natura; tecnologia: neon…).
+
+Domande suggerite: alla fine di ogni risposta puoi proporre fino a 3 domande che l'utente potrebbe farti dopo, una per riga nel formato {{domanda}}. Diventano pulsanti cliccabili.
 
 Pulsanti d'azione: puoi aggiungere alla fine della risposta fino a 3 pulsanti, uno per riga, nel formato [[percorso|Etichetta]]. L'etichetta è breve (2-4 parole) e dice cosa succede. Usa solo questi percorsi:
 /dashboard, /impostazioni, /registrati, /accedi, /password-dimenticata, /#viaggio, /#sicurezza, ${FEATURES.map((f) => `/crea/${f.id}`).join(", ")}.
@@ -51,72 +62,6 @@ Percorsi utili:
 - Limiti: fino a 500 presentazioni e 100 MB di spazio per account; immagini fino a 4 MB.
 
 Sicurezza del sito (se chiedono): password protette con argon2id e controllo delle password compromesse, verifica in due passaggi, sessioni sicure, protezione CSRF e Content Security Policy, limiti ai tentativi.`;
-
-/** Offline answers when no API key is configured, so the assistant still helps. */
-const FAQ: { words: string[]; answer: string }[] = [
-  { words: ["registr", "account", "iscriv"], answer: "Per iniziare vai su /registrati, inserisci nome, email e password, poi conferma l'email. Da lì la tua dashboard è pronta al decollo 🚀" },
-  { words: ["accedi", "login", "entrare"], answer: "Puoi entrare da /accedi. Se hai attivato la verifica in due passaggi ti chiederò anche il codice della tua app di autenticazione." },
-  { words: ["password", "dimentic"], answer: "Nessun problema: vai su /password-dimenticata, inserisci la tua email e riceverai un link per sceglierne una nuova." },
-  { words: ["2fa", "due passaggi", "codice", "autenticazione"], answer: "La verifica in due passaggi si attiva da /impostazioni: scansiona il QR con un'app come Google Authenticator e conserva i codici di recupero." },
-  { words: ["condivid", "link", "qr", "incorpora"], answer: "Nell'editor premi Condividi: ottieni un link pubblico, puoi proteggerlo con una password e hai anche QR code e codice per incorporarla nel tuo sito." },
-  { words: ["pdf", "stampa", "esporta"], answer: "Dall'editor apri il menu di stampa ed esporta in PDF: ogni pagina diventa un foglio, pronta da inviare." },
-  { words: ["present", "note", "cronometro"], answer: "Premi Presenta nell'editor. Con la modalità presentatore vedi le note della pagina e il cronometro, mentre il pubblico vede solo le slide." },
-  { words: ["font", "carattere", "colore", "sfumat"], answer: "Seleziona un testo e usa il pannello a destra: puoi scegliere tra oltre 30 font, colori pieni o sfumature con angolo regolabile, ombre e contorni." },
-  { words: ["animaz", "effett"], answer: "Seleziona un elemento e apri Animazioni nel pannello a destra: 7 effetti di ingresso e 4 continui, con durata e ritardo regolabili." },
-  { words: ["transiz"], answer: "Le transizioni tra pagine (dissolvenza, scorrimento, zoom, rotazione 3D) si scelgono dal pannello della pagina; puoi applicarle a tutte con un clic." },
-  { words: ["hotspot", "interatt", "quiz", "popup", "pop-up"], answer: "Per renderla interattiva aggiungi hotspot, finestre di approfondimento, contenuti da rivelare o pulsanti che portano a un'altra pagina: perfetti per quiz e storie a bivi." },
-  { words: ["immagin", "foto", "carica"], answer: "Nell'editor scegli Immagine e caricala dal computer (fino a 4 MB). Ricordati il testo alternativo per l'accessibilità." },
-  { words: ["modell", "templat", "inizia", "nuova"], answer: "Dalla dashboard premi Nuova presentazione e scegli un modello: lezione interattiva, pitch, quiz o pagina vuota. Oppure clicca un pianeta in homepage e premi \"Crea con questa funzione\"." },
-  { words: ["sicur", "privacy", "dati"], answer: "Lumora protegge gli account con argon2id, verifica in due passaggi, sessioni sicure e controlli contro attacchi CSRF e XSS. I tuoi dati restano tuoi." },
-  { words: ["prezz", "costo", "gratis", "pagare"], answer: "Creare un account è gratuito e include fino a 500 presentazioni e 100 MB di spazio." },
-];
-
-/** Buttons the offline guide adds after an answer, keyed by the first FAQ word. */
-const FAQ_ACTIONS: Record<string, string> = {
-  registr: "[[/registrati|Crea un account]]",
-  accedi: "[[/accedi|Accedi]]",
-  password: "[[/password-dimenticata|Recupera la password]]",
-  "2fa": "[[/impostazioni|Apri la sicurezza]]",
-  condivid: "[[/crea/condividi|Prova a condividere]]",
-  pdf: "[[/crea/condividi|Prova l'esportazione]]",
-  present: "[[/crea/condividi|Prova a presentare]]",
-  font: "[[/crea/contenuti|Prova testi e colori]]",
-  animaz: "[[/crea/animazioni|Prova le animazioni]]",
-  transiz: "[[/crea/transizioni|Prova le transizioni]]",
-  hotspot: "[[/crea/percorsi|Crea un quiz]]",
-  immagin: "[[/crea/contenuti|Aggiungi immagini]]",
-  modell: "[[/crea/modelli|Scegli un modello]]",
-  sicur: "[[/#sicurezza|Scopri la sicurezza]]",
-  prezz: "[[/registrati|Inizia gratis]]",
-};
-
-/** A starter outline for "ideas about X" when the AI is not connected. */
-function outline(topic: string) {
-  return [
-    `Ecco una scaletta di partenza per "${topic}":`,
-    "• Copertina con titolo animato (animazione di ingresso)",
-    "• Perché è importante: una domanda al pubblico (contenuto da rivelare)",
-    "• I concetti chiave, uno per pagina (hotspot con approfondimenti)",
-    "• Un esempio concreto con immagini (transizione zoom)",
-    "• Mini quiz per verificare (risposte giuste e sbagliate)",
-    "• Riepilogo e prossimi passi (link e QR code)",
-    "",
-    "[[/crea/modelli|Parti da un modello]]",
-    "[[/crea/percorsi|Aggiungi un quiz]]",
-  ].join("\n");
-}
-
-export function offlineAnswer(question: string) {
-  const q = question.toLowerCase();
-  const topic = q.match(/(?:idee|scaletta|presentazione)\s+(?:per una presentazione\s+)?(?:su|sul|sulla|sui|sugli|sulle|di|per)\s+(.{2,60})/);
-  if (topic) return outline(topic[1].replace(/[?.!]+$/, "").trim());
-  const hit = FAQ.find((f) => f.words.some((w) => q.includes(w)));
-  if (hit) {
-    const action = FAQ_ACTIONS[hit.words[0]];
-    return action ? `${hit.answer}\n\n${action}` : hit.answer;
-  }
-  return "Bip bop! In questo momento sono collegato solo alla mia guida di bordo: posso aiutarti con tutto ciò che riguarda Lumora (creare, animare, condividere, proteggere) e preparare scalette, per esempio \"idee per una presentazione sul sistema solare\".\n\n[[/#viaggio|Esplora le funzioni]]";
-}
 
 /** Short description of where the visitor is, so Zib can tailor its help. */
 export function pageContext(path: string) {

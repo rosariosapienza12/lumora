@@ -5,30 +5,47 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { AlienShip } from "./alien";
+import { parseDeck, serializeDeck } from "@/lib/editor/deck";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
   "Come creo la mia prima presentazione?",
-  "Idee per una presentazione sul sistema solare",
+  "Fammi una presentazione sul sistema solare",
   "Come aggiungo un quiz?",
   "Quali scorciatoie da tastiera ci sono?",
 ];
 /** Where action buttons may lead: the same list the server prompt allows. */
 const ACTION_PATH = /^\/(dashboard|impostazioni|registrati|accedi|password-dimenticata|#viaggio|#sicurezza|crea\/(modelli|layout|contenuti|animazioni|transizioni|interattivita|percorsi|condividi))$/;
 
-/** Splits an answer into text and [[path|label]] action buttons (unknown paths are dropped). */
+/**
+ * Splits an answer into text, action buttons and suggested questions:
+ * [[crea|outline]] becomes "Crea questa presentazione" (validated outline only),
+ * [[path|label]] a link to an allowed page, {{question}} a follow-up chip.
+ */
 function parseAnswer(content: string) {
-  const actions: { href: string; label: string }[] = [];
+  const actions: { href: string; label: string; primary?: boolean }[] = [];
+  const suggestions: string[] = [];
   const text = content
+    .replace(/\[\[crea\|([^\]]+)\]\]/g, (_, raw: string) => {
+      const spec = parseDeck(raw.trim());
+      if (spec) actions.unshift({ href: `/nuova?d=${encodeURIComponent(serializeDeck(spec))}`, label: "Crea questa presentazione", primary: true });
+      return "";
+    })
+    .replace(/\{\{([^{}]{2,90})\}\}/g, (_, q: string) => {
+      if (suggestions.length < 3) suggestions.push(q.trim());
+      return "";
+    })
     .replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, (_, href: string, label: string) => {
       if (ACTION_PATH.test(href.trim()) && actions.length < 3) actions.push({ href: href.trim(), label: label.trim().slice(0, 40) });
       return "";
     })
-    // Hide a half-streamed button until it is complete.
+    // Hide a half-streamed button or suggestion until it is complete.
     .replace(/\[\[[^\]]*$/, "")
+    .replace(/\{\{[^}]*$/, "")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return { text, actions };
+  return { text, actions: actions.slice(0, 4), suggestions };
 }
 const GREETING = "Ciao, sono Zib! 👽 Ti accompagno tra i pianeti di Lumora. Chiedimi come creare, animare o condividere una presentazione, o qualsiasi altra cosa.";
 const STORAGE_KEY = "lumora-zib";
@@ -176,7 +193,15 @@ export function Assistant() {
             <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
               <Bubble role="assistant" content={GREETING} />
               {messages.map((m, i) => (
-                <Bubble key={i} role={m.role} content={m.content} typing={busy && i === messages.length - 1 && !m.content} onNavigate={() => setOpen(false)} />
+                <Bubble
+                  key={i}
+                  role={m.role}
+                  content={m.content}
+                  typing={busy && i === messages.length - 1 && !m.content}
+                  onNavigate={() => setOpen(false)}
+                  // Follow-up chips only under the latest answer, once it has finished.
+                  onAsk={!busy && i === messages.length - 1 ? send : undefined}
+                />
               ))}
               {messages.length === 0 && (
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -262,7 +287,7 @@ export function Assistant() {
   );
 }
 
-function Bubble({ role, content, typing = false, onNavigate }: Message & { typing?: boolean; onNavigate?: () => void }) {
+function Bubble({ role, content, typing = false, onNavigate, onAsk }: Message & { typing?: boolean; onNavigate?: () => void; onAsk?: (q: string) => void }) {
   const [copied, setCopied] = useState(false);
   if (role === "user") {
     return (
@@ -273,7 +298,7 @@ function Bubble({ role, content, typing = false, onNavigate }: Message & { typin
       </div>
     );
   }
-  const { text, actions } = parseAnswer(content);
+  const { text, actions, suggestions } = parseAnswer(content);
   const lines = text.split("\n");
   const copy = async () => {
     try {
@@ -317,13 +342,26 @@ function Bubble({ role, content, typing = false, onNavigate }: Message & { typin
                 key={a.href}
                 href={a.href}
                 onClick={onNavigate}
-                className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7fffd4] to-[#9d8bff] px-3 py-1.5 text-[13px] font-semibold text-[#120d2e] shadow-[0_2px_10px_rgba(127,255,212,0.25)] transition-transform hover:scale-[1.03]"
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold text-[#120d2e] transition-transform hover:scale-[1.03] ${
+                  a.primary
+                    ? "bg-gradient-to-r from-[#ffd36b] via-[#7fffd4] to-[#9d8bff] shadow-[0_2px_14px_rgba(255,211,107,0.35)]"
+                    : "bg-gradient-to-r from-[#7fffd4] to-[#9d8bff] shadow-[0_2px_10px_rgba(127,255,212,0.25)]"
+                }`}
               >
                 {a.label}
                 <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden>
                   <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </Link>
+            ))}
+          </div>
+        )}
+        {onAsk && suggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {suggestions.map((q) => (
+              <button key={q} type="button" onClick={() => onAsk(q)} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-left text-[12.5px] text-white/85 transition-colors hover:border-[#7fffd4]/50 hover:bg-white/10">
+                {q}
+              </button>
             ))}
           </div>
         )}
