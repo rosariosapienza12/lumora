@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Element, Page } from "@/lib/editor/schema";
 import { CANVAS_H, CANVAS_W } from "@/lib/editor/schema";
-import { ElementBody, elementBox } from "@/components/slide/element-view";
+import { ElementBody, elementBox, pageBackground } from "@/components/slide/element-view";
 import { FitStage } from "@/components/slide/fit-stage";
 import type { Action } from "./store";
 
@@ -74,7 +74,7 @@ export function Canvas({ page, selectedId, dispatch }: { page: Page; selectedId:
 
   return (
     <div className="h-full w-full" onPointerDown={() => dispatch({ type: "select", id: null })}>
-      <FitStage background={page.background} contain onScale={onScale} className="[&>div]:shadow-2xl">
+      <FitStage background={pageBackground(page)} contain onScale={onScale} className="[&>div]:shadow-2xl">
         <div className="absolute inset-0" onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
           {page.elements.map((el) => (
             <CanvasItem key={el.id} el={el} selected={el.id === selectedId} onBegin={begin} />

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
 import type { Element, PresentationDoc } from "@/lib/editor/schema";
-import { ElementBody, elementBox } from "@/components/slide/element-view";
+import { ElementBody, elementBox, pageBackground, SHADOW } from "@/components/slide/element-view";
 import { FitStage } from "@/components/slide/fit-stage";
 import { emphasisLoop, enterFrom, enterTo, pageVariants } from "./motion-presets";
 
@@ -24,12 +24,15 @@ export function Player({
   startIndex = 0,
   onClose,
   globalKeys = true,
+  presenter = false,
 }: {
   doc: PresentationDoc;
   startIndex?: number;
   onClose?: () => void;
   /** Arrow/space navigation on the whole window. Off when embedded in a scrolling page. */
   globalKeys?: boolean;
+  /** Presenter mode: speaker notes, next page and a timer (only for the author, never in public views). */
+  presenter?: boolean;
 }) {
   const [[index, direction], setPage] = useState<[number, number]>([Math.min(startIndex, doc.pages.length - 1), 1]);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -40,6 +43,15 @@ export function Player({
   const rootRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const page = doc.pages[index];
+  const [showNotes, setShowNotes] = useState(presenter);
+  const [elapsed, setElapsed] = useState(0);
+  const autoAdvance = doc.settings?.autoAdvance ?? 0;
+
+  useEffect(() => {
+    if (!presenter) return;
+    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [presenter]);
 
   const go = useCallback(
     (to: number) => {
@@ -77,6 +89,13 @@ export function Player({
     [doc.pages, go],
   );
 
+  // Auto-advance, paused while a window or a link confirmation is open.
+  useEffect(() => {
+    if (!autoAdvance || popup || pendingLink || index >= doc.pages.length - 1) return;
+    const t = setTimeout(() => go(index + 1), autoAdvance * 1000);
+    return () => clearTimeout(t);
+  }, [autoAdvance, popup, pendingLink, index, doc.pages.length, go]);
+
   useEffect(() => {
     if (!globalKeys) return;
     const onKey = (e: KeyboardEvent) => {
@@ -90,10 +109,11 @@ export function Player({
       if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") go(index + 1);
       else if (e.key === "ArrowLeft" || e.key === "PageUp") go(index - 1);
       else if (e.key === "Escape") onClose?.();
+      else if (presenter && e.key.toLowerCase() === "n") setShowNotes((v) => !v);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [globalKeys, go, index, onClose, popup, pendingLink]);
+  }, [globalKeys, go, index, onClose, popup, pendingLink, presenter]);
 
   const fullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -117,7 +137,7 @@ export function Player({
               transition={{ duration: reduce ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
               className="absolute inset-0"
             >
-              <FitStage background={page.background} contain>
+              <FitStage background={pageBackground(page)} contain>
                 {page.elements.map((el) => {
                   if (el.hidden && !revealed.has(el.id)) return null;
                   return <PlayerElement key={el.id} el={el} onRun={run} tooltip={tooltip?.id === el.id ? tooltip.text : null} setTooltip={setTooltip} />;
@@ -204,6 +224,33 @@ export function Player({
           </AnimatePresence>
         </div>
 
+        {autoAdvance > 0 && index < doc.pages.length - 1 && !popup && !pendingLink && (
+          <div aria-hidden className="h-0.5 bg-white/10">
+            <motion.div
+              key={index}
+              className="h-full bg-[#ffb547]"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: autoAdvance, ease: "linear" }}
+            />
+          </div>
+        )}
+
+        {presenter && showNotes && (
+          <div className="grid gap-4 border-t border-white/10 bg-[#15122f] px-5 py-3 text-sm text-white/85 sm:grid-cols-[1fr_auto]">
+            <div className="max-h-32 overflow-auto whitespace-pre-wrap">
+              <p className="mb-1 text-xs font-medium text-white/50">Note del relatore</p>
+              {page.notes?.trim() ? page.notes : <span className="text-white/40">Nessuna nota per questa pagina.</span>}
+            </div>
+            <div className="text-right text-xs text-white/60">
+              <p className="font-mono text-2xl text-white">
+                {String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}
+              </p>
+              <p>{index < doc.pages.length - 1 ? `Prossima: ${doc.pages[index + 1].name}` : "Ultima pagina"}</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-4 py-2 text-sm text-white/80">
           <button onClick={() => go(index - 1)} disabled={index === 0} className="rounded-full px-3 py-1.5 hover:bg-white/10 disabled:opacity-30" aria-label="Pagina precedente">
             ←
@@ -215,12 +262,17 @@ export function Player({
             →
           </button>
           <div className="ml-auto flex gap-1">
+            {presenter && (
+              <button onClick={() => setShowNotes((v) => !v)} aria-pressed={showNotes} className="rounded-full px-3 py-1.5 hover:bg-white/10 aria-pressed:bg-white/10" title="Mostra o nascondi le note (N)">
+                Note
+              </button>
+            )}
             <button onClick={fullscreen} className="rounded-full px-3 py-1.5 hover:bg-white/10">
               Schermo intero
             </button>
             {onClose && (
               <button onClick={onClose} className="rounded-full px-3 py-1.5 hover:bg-white/10">
-                Chiudi anteprima
+                Esci
               </button>
             )}
           </div>
@@ -274,7 +326,8 @@ function PlayerElement({
       whileTap={interactive ? { scale: 0.97 } : undefined}
       {...handlers}
     >
-      <motion.div className="h-full w-full" animate={emphasisLoop[el.animation.emphasis]}>
+      {/* The outer filter animates the entrance blur, so the shadow lives on the inner layer. */}
+      <motion.div className="h-full w-full" style={{ filter: el.shadow ? SHADOW : undefined }} animate={emphasisLoop[el.animation.emphasis]}>
         <ElementBody el={el} />
       </motion.div>
       <AnimatePresence>

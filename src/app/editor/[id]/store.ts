@@ -1,4 +1,4 @@
-import type { Element, ElementType, Page, PresentationDoc } from "@/lib/editor/schema";
+import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 
 export type EditorState = {
@@ -19,13 +19,19 @@ export type Action =
   | { type: "delete-page"; pageId: string }
   | { type: "move-page"; pageId: string; dir: -1 | 1 }
   | { type: "update-page"; patch: Partial<Omit<Page, "id" | "elements">> }
-  | { type: "add-element"; kind: ElementType; src?: string }
+  | { type: "add-element"; kind: ElementType; src?: string; alt?: string }
   | { type: "update-element"; id: string; patch: Partial<Element>; /** merge into the previous history step (drag) */ coalesce?: boolean }
   | { type: "delete-element"; id: string }
   | { type: "duplicate-element"; id: string }
   | { type: "reorder-element"; id: string; to: "front" | "back" | "forward" | "backward" }
+  | { type: "align"; id: string; to: Align }
+  | { type: "paste"; element: Element }
+  | { type: "transition-all"; transition: Transition }
+  | { type: "settings"; autoAdvance: number }
   | { type: "undo" }
   | { type: "redo" };
+
+export type Align = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 
 const HISTORY = 100;
 
@@ -56,7 +62,7 @@ const baseEl = () => ({
   interaction: null,
 });
 
-function createElement(kind: ElementType, src?: string): Element {
+function createElement(kind: ElementType, src?: string, alt = ""): Element {
   const cx = CANVAS_W / 2;
   const cy = CANVAS_H / 2;
   switch (kind) {
@@ -65,7 +71,7 @@ function createElement(kind: ElementType, src?: string): Element {
     case "shape":
       return { ...baseEl(), type: "shape", x: cx - 200, y: cy - 150, w: 400, h: 300, shape: "rect", fill: "#5b3df5", radius: 32 };
     case "image":
-      return { ...baseEl(), type: "image", x: cx - 320, y: cy - 200, w: 640, h: 400, src: src ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1280", alt: "", fit: "cover", radius: 24 };
+      return { ...baseEl(), type: "image", x: cx - 320, y: cy - 200, w: 640, h: 400, src: src ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1280", alt, fit: "cover", radius: 24 };
     case "button":
       return { ...baseEl(), type: "button", x: cx - 160, y: cy - 45, w: 320, h: 90, label: "Scopri di più", fill: "#5b3df5", color: "#ffffff", fontSize: 32 };
     case "hotspot":
@@ -155,7 +161,7 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "update-page":
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, ...action.patch })));
     case "add-element": {
-      const el = createElement(action.kind, action.src);
+      const el = createElement(action.kind, action.src, action.alt);
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
     }
     case "update-element":
@@ -190,6 +196,27 @@ export function reducer(state: EditorState, action: Action): EditorState {
       els.splice(to, 0, el);
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: els })));
     }
+    case "align": {
+      const el = page.elements.find((e) => e.id === action.id);
+      if (!el || el.locked) return state;
+      const patch: Partial<Element> =
+        action.to === "left" ? { x: 0 }
+        : action.to === "hcenter" ? { x: Math.round((CANVAS_W - el.w) / 2) }
+        : action.to === "right" ? { x: CANVAS_W - el.w }
+        : action.to === "top" ? { y: 0 }
+        : action.to === "vcenter" ? { y: Math.round((CANVAS_H - el.h) / 2) }
+        : { y: CANVAS_H - el.h };
+      return reducer(state, { type: "update-element", id: el.id, patch });
+    }
+    case "paste": {
+      // New id; a "reveal" pointing at another page's element is dropped by pruneRefs.
+      const copy = { ...structuredClone(action.element), id: newId(), x: action.element.x + 30, y: action.element.y + 30 };
+      return commit(state, pruneRefs(mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, copy] }))), { selectedId: copy.id });
+    }
+    case "transition-all":
+      return commit(state, { ...state.doc, pages: state.doc.pages.map((p) => ({ ...p, transition: action.transition })) });
+    case "settings":
+      return commit(state, { ...state.doc, settings: { autoAdvance: Math.max(0, Math.min(300, Math.round(action.autoAdvance))) } });
     case "undo": {
       const prev = state.past.at(-1);
       if (!prev) return state;

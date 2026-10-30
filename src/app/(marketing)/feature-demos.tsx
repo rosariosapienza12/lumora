@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion } from "motion/react";
 
 /** Small, working samples of each feature, shown beside its planet in the tour. */
 
@@ -76,70 +76,6 @@ function AnimationsDemo({ accent }: { accent: string }) {
           Riproduci
         </button>
       </div>
-    </Frame>
-  );
-}
-
-function PopupDemo({ accent }: { accent: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Frame accent={accent}>
-      <p className="text-sm text-white/80">Le maree dipendono dalla Luna.</p>
-      <button onClick={() => setOpen(true)} className={`${btn} mt-3 text-[#03252a]`} style={{ background: accent }}>
-        Perché?
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div className="absolute inset-0 grid place-items-center bg-black/40 p-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div
-              role="dialog"
-              aria-label="Finestra di esempio"
-              initial={{ scale: 0.85, y: 10 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              className="w-full rounded-xl bg-white p-3 text-[#1d1a3a]"
-            >
-              <p className="font-display font-bold">La forza di gravità</p>
-              <p className="mt-1 text-sm text-[#5d5a7a]">La Luna attira l&apos;acqua degli oceani verso di sé.</p>
-              <button autoFocus onClick={() => setOpen(false)} className={`${btn} mt-2 bg-[#1d1a3a] text-white`}>
-                Chiudi
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Frame>
-  );
-}
-
-function RevealDemo({ accent }: { accent: string }) {
-  const [shown, setShown] = useState(false);
-  return (
-    <Frame accent={accent}>
-      <p className="text-sm text-white/80">Quanto fa 7 × 8?</p>
-      <AnimatePresence mode="wait">
-        {shown ? (
-          <motion.p
-            key="a"
-            initial={{ opacity: 0, filter: "blur(10px)", scale: 1.2 }}
-            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
-            className="mt-3 font-display text-4xl font-bold"
-            style={{ color: accent, textShadow: `0 0 24px ${accent}` }}
-          >
-            56
-          </motion.p>
-        ) : (
-          <motion.button key="b" exit={{ opacity: 0 }} onClick={() => setShown(true)} className={`${btn} mt-3 bg-white/10 text-white hover:bg-white/20`}>
-            Mostra la risposta
-          </motion.button>
-        )}
-      </AnimatePresence>
-      {shown && (
-        <button onClick={() => setShown(false)} className="absolute bottom-3 right-3 text-xs text-white/60 underline">
-          Nascondi
-        </button>
-      )}
     </Frame>
   );
 }
@@ -241,60 +177,126 @@ function ShareDemo({ accent }: { accent: string }) {
   );
 }
 
-function SecurityDemo({ accent }: { accent: string }) {
-  const [step, setStep] = useState(0);
-  const reduce = useReducedMotion();
-  const code = "482913";
-  useEffect(() => {
-    if (step === 0 || step > code.length) return;
-    const t = setTimeout(() => setStep((s) => s + 1), reduce ? 0 : 160);
-    return () => clearTimeout(t);
-  }, [step, reduce]);
-  const done = step > code.length;
+
+function TemplatesDemo({ accent }: { accent: string }) {
+  const options = [
+    { id: "Lezione", bg: "#1d1a3a", fg: "#ffffff", deco: accent },
+    { id: "Pitch", bg: "#ffffff", fg: "#1d1a3a", deco: "#d22f4f" },
+    { id: "Quiz", bg: "#f4f2ff", fg: "#1d1a3a", deco: "#5b3df5" },
+  ];
+  const [pick, setPick] = useState(0);
+  const o = options[pick];
   return (
     <Frame accent={accent}>
-      <p className="text-sm text-white/80">Codice dall&apos;app del telefono</p>
-      <div className="mt-3 flex gap-1.5">
-        {code.split("").map((d, i) => (
-          <span
-            key={i}
-            className="grid h-10 w-8 place-items-center rounded-lg border font-mono text-lg font-bold text-white transition-colors"
-            style={{ borderColor: i < step ? accent : "rgba(255,255,255,0.15)", background: i < step ? `${accent}30` : "transparent" }}
-          >
-            {i < step ? d : ""}
-          </span>
-        ))}
-      </div>
-      <div className="mt-3 h-8">
-        {done ? (
-          <motion.p initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 text-sm font-semibold" style={{ color: accent }}>
-            <span aria-hidden className="grid size-6 place-items-center rounded-full text-[#0a0f30]" style={{ background: accent }}>
-              ✓
-            </span>
-            Accesso verificato
-            <button onClick={() => setStep(0)} className="ml-2 text-xs font-normal text-white/60 underline">
-              Riprova
+      <div className="flex h-full gap-3">
+        <div className="flex flex-col gap-1.5">
+          {options.map((opt, i) => (
+            <button
+              key={opt.id}
+              onClick={() => setPick(i)}
+              aria-pressed={i === pick}
+              className={`${btn} bg-white/10 text-left text-white hover:bg-white/20 aria-pressed:text-[#2a1a00]`}
+              style={i === pick ? { background: accent } : undefined}
+            >
+              {opt.id}
             </button>
-          </motion.p>
-        ) : (
-          <button onClick={() => setStep(1)} disabled={step > 0} className={`${btn} text-[#0a0f30] disabled:opacity-60`} style={{ background: accent }}>
-            Verifica
-          </button>
-        )}
+          ))}
+        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={o.id}
+            initial={{ opacity: 0, scale: 0.9, rotate: -2 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.35 }}
+            className="relative flex-1 overflow-hidden rounded-xl p-3"
+            style={{ background: o.bg }}
+          >
+            <span className="absolute -right-4 -top-4 size-16 rounded-full" style={{ background: o.deco }} />
+            <p className="relative font-display text-lg font-bold" style={{ color: o.fg }}>
+              {o.id}
+            </p>
+            <span className="relative mt-2 block h-1.5 w-2/3 rounded-full" style={{ background: o.fg, opacity: 0.25 }} />
+            <span className="relative mt-1.5 block h-1.5 w-1/2 rounded-full" style={{ background: o.fg, opacity: 0.25 }} />
+          </motion.div>
+        </AnimatePresence>
       </div>
     </Frame>
   );
 }
 
+function LayoutDemo({ accent }: { accent: string }) {
+  const x = useMotionValue(70);
+  const [centered, setCentered] = useState(false);
+  return (
+    <Frame accent={accent}>
+      <p className="relative text-xs text-white/60">Trascina il riquadro verso il centro</p>
+      <div className="absolute inset-x-4 bottom-4 top-9">
+        <span aria-hidden className="absolute inset-y-0 left-1/2 w-px transition-opacity" style={{ background: accent, opacity: centered ? 1 : 0.15 }} />
+        <motion.div
+          drag
+          dragMomentum={false}
+          dragConstraints={{ left: -120, right: 120, top: -30, bottom: 30 }}
+          onDrag={() => setCentered(Math.abs(x.get()) < 14)}
+          onDragEnd={() => {
+            // Snap to the guide, like the editor does.
+            if (Math.abs(x.get()) < 14) animate(x, 0, { type: "spring", stiffness: 500, damping: 30 });
+          }}
+          whileDrag={{ scale: 1.05 }}
+          className="absolute left-1/2 top-1/2 -ml-10 -mt-6 grid h-12 w-20 cursor-grab place-items-center rounded-lg text-xs font-semibold text-white active:cursor-grabbing"
+          style={{ x, background: `${accent}aa`, border: `1px solid ${accent}` }}
+        >
+          {centered ? "Centrato" : "Titolo"}
+        </motion.div>
+      </div>
+    </Frame>
+  );
+}
+
+function ContentDemo({ accent }: { accent: string }) {
+  const [style, setStyle] = useState({ italic: false, shadow: false, border: false, color: false });
+  const toggle = (k: keyof typeof style) => setStyle((s) => ({ ...s, [k]: !s[k] }));
+  return (
+    <Frame accent={accent}>
+      <div className="flex flex-wrap gap-1.5">
+        {(
+          [
+            ["italic", "Corsivo"],
+            ["shadow", "Ombra"],
+            ["border", "Cornice"],
+            ["color", "Colore"],
+          ] as const
+        ).map(([k, label]) => (
+          <button key={k} onClick={() => toggle(k)} aria-pressed={style[k]} className={`${btn} bg-white/10 px-3 py-1 text-xs text-white aria-pressed:text-[#3a0a1a]`} style={style[k] ? { background: accent } : undefined}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <motion.p
+        layout
+        className="mt-4 inline-block rounded-lg px-3 py-1.5 font-display text-2xl font-bold"
+        style={{
+          fontStyle: style.italic ? "italic" : "normal",
+          color: style.color ? accent : "#ffffff",
+          textShadow: style.shadow ? `0 6px 18px ${accent}` : "none",
+          outline: style.border ? `2px solid ${accent}` : "2px solid transparent",
+        }}
+      >
+        Il mio titolo
+      </motion.p>
+    </Frame>
+  );
+}
+
 const DEMOS: Record<string, (p: { accent: string }) => ReactNode> = {
-  hotspot: HotspotDemo,
+  modelli: TemplatesDemo,
+  layout: LayoutDemo,
+  contenuti: ContentDemo,
   animazioni: AnimationsDemo,
-  popup: PopupDemo,
-  rivela: RevealDemo,
-  percorsi: PathsDemo,
   transizioni: TransitionsDemo,
+  interattivita: HotspotDemo,
+  percorsi: PathsDemo,
   condividi: ShareDemo,
-  sicurezza: SecurityDemo,
 };
 
 export function FeatureDemo({ id, accent }: { id: string; accent: string }) {

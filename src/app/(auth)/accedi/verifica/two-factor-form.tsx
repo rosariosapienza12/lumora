@@ -5,13 +5,14 @@ import { twoFactorAction } from "../../actions";
 import { Button, Field, FormMessage } from "@/components/ui";
 import type { FormState } from "@/lib/validation";
 
-export function TwoFactorForm() {
+export function TwoFactorForm({ next }: { next?: string | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(twoFactorAction, {});
   const [mode, setMode] = useState<"totp" | "recovery">("totp");
 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="mode" value={mode} />
+      {next && <input type="hidden" name="dopo" value={next} />}
       {mode === "totp" ? (
         <Field
           key="totp"

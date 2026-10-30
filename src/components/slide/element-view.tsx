@@ -1,6 +1,14 @@
 import type { CSSProperties } from "react";
 import type { Element, Page } from "@/lib/editor/schema";
+import { FONT_FAMILY } from "@/lib/editor/schema";
 import { FitStage } from "./fit-stage";
+
+/** A flat colour, or a linear gradient when a second colour is set. */
+export function paint(c1: string, c2?: string, angle = 135) {
+  return c2 ? `linear-gradient(${angle}deg, ${c1}, ${c2})` : c1;
+}
+
+export const pageBackground = (p: Page) => paint(p.background, p.color2, p.angle);
 
 /** Pure visual rendering of one element, in canvas units. Text is always rendered as text, never HTML. */
 export function ElementBody({ el }: { el: Element }) {
@@ -11,10 +19,18 @@ export function ElementBody({ el }: { el: Element }) {
           style={{
             fontSize: el.fontSize,
             color: el.color,
+            // Gradient text: paint the background and clip it to the letters.
+            ...(el.color2
+              ? { backgroundImage: paint(el.color, el.color2, el.angle ?? 90), WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }
+              : {}),
             textAlign: el.align,
             fontWeight: Number(el.weight),
-            fontFamily: el.font === "display" ? "var(--font-bricolage)" : "var(--font-instrument)",
-            lineHeight: 1.15,
+            fontFamily: FONT_FAMILY[el.font],
+            fontStyle: el.italic ? "italic" : undefined,
+            textDecoration: el.underline ? "underline" : undefined,
+            textUnderlineOffset: "0.12em",
+            letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : undefined,
+            lineHeight: el.lineHeight ?? 1.15,
             whiteSpace: "pre-wrap",
             overflowWrap: "anywhere",
             width: "100%",
@@ -30,8 +46,9 @@ export function ElementBody({ el }: { el: Element }) {
           style={{
             width: "100%",
             height: "100%",
-            background: el.fill,
+            background: paint(el.fill, el.color2, el.angle),
             borderRadius: el.shape === "ellipse" ? "50%" : el.radius,
+            ...strokeStyle(el.stroke, el.strokeWidth),
           }}
         />
       );
@@ -43,7 +60,7 @@ export function ElementBody({ el }: { el: Element }) {
           alt={el.alt}
           draggable={false}
           referrerPolicy="no-referrer"
-          style={{ width: "100%", height: "100%", objectFit: el.fit, borderRadius: el.radius, pointerEvents: "none" }}
+          style={{ width: "100%", height: "100%", objectFit: el.fit, borderRadius: el.radius, pointerEvents: "none", ...strokeStyle(el.stroke, el.strokeWidth) }}
         />
       );
     case "button":
@@ -54,9 +71,10 @@ export function ElementBody({ el }: { el: Element }) {
             height: "100%",
             display: "grid",
             placeItems: "center",
-            background: el.fill,
+            background: paint(el.fill, el.color2, el.angle),
             color: el.color,
             fontSize: el.fontSize,
+            fontFamily: FONT_FAMILY[el.font ?? "sans"],
             fontWeight: 600,
             borderRadius: 999,
           }}
@@ -82,6 +100,13 @@ export function ElementBody({ el }: { el: Element }) {
   }
 }
 
+/** Border drawn inside the element (an outline follows the rounded corners, also on images). */
+function strokeStyle(stroke?: string, width?: number): CSSProperties {
+  return stroke && width ? { outline: `${width}px solid ${stroke}`, outlineOffset: -width } : {};
+}
+
+export const SHADOW = "drop-shadow(0 18px 28px rgba(0,0,0,0.35))";
+
 export function elementBox(el: Element): CSSProperties {
   return {
     position: "absolute",
@@ -91,13 +116,14 @@ export function elementBox(el: Element): CSSProperties {
     height: el.h,
     transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
     opacity: el.opacity,
+    filter: el.shadow ? SHADOW : undefined,
   };
 }
 
 /** Static, non-interactive preview of a page scaled to its container width. */
 export function SlideThumb({ page, className = "" }: { page: Page; className?: string }) {
   return (
-    <FitStage background={page.background} className={className}>
+    <FitStage background={pageBackground(page)} className={className}>
       <div aria-hidden>
         {page.elements
           .filter((el) => !el.hidden)

@@ -8,12 +8,10 @@
 
 export type PlanetKind = "ember" | "aurora" | "ocean" | "crystal" | "jungle" | "gold" | "rose" | "aegis";
 
-export const TEX_W = 512;
-export const TEX_H = 256;
 
 type RGB = [number, number, number];
-/** Colour plus emission 0..1. */
-type Texel = [number, number, number, number];
+/** Colour, emission 0..1 and, optionally, specular strength 0..1 (shiny water, ice, metal). */
+type Texel = [number, number, number, number, number?];
 
 function mulberry32(seed: number) {
   return () => {
@@ -86,6 +84,104 @@ const vein = (v: number, width: number) => clamp01(1 - Math.abs(v - 0.5) / width
 
 type P = { x: number; y: number; z: number };
 type Sampler = (lat: number, lon: number, p: P) => Texel;
+type Noise = ReturnType<typeof makeNoise>;
+const smoothstep = (a: number, b: number, t: number) => {
+  const k = clamp01((t - a) / (b - a));
+  return k * k * (3 - 2 * k);
+};
+
+type Giant = {
+  /** Bright zones (high ammonia clouds) and dark belts, from equator to mid-latitudes. */
+  zone: RGB;
+  belt: RGB;
+  /** Deepest belt colour, seen in the darkest streaks. */
+  deep: RGB;
+  /** Colour of the poles, where banding gives way to mottled cyclones. */
+  pole: RGB;
+  /** The great storm: colour, centre (radians) and half-size (radians). */
+  storm: { color: RGB; lat: number; lon: number; w: number; h: number };
+  /** How strongly belts differ from zones (Saturn is subtle, Jupiter is not). */
+  contrast: number;
+  /** Seed offset so each giant has its own band layout. */
+  seed: number;
+  /** Optional north polar hexagon, like Saturn's. */
+  hexagon?: boolean;
+};
+
+/**
+ * A gas giant modelled on Jupiter (Juno and Cassini imagery): zones and
+ * belts of uneven width with fairly crisp edges; streaky clouds stretched
+ * along the zonal winds; eddies and scallops where neighbouring bands shear;
+ * a chain of small white ovals; one great oval storm that the bands flow
+ * around; banding that fades into darker, mottled poles. Colours stay muted:
+ * real giants are far less saturated than they look in art.
+ */
+function giant(g: Giant, a: Noise, b: Noise, c: Noise, d: Noise): Sampler {
+  const o = g.seed;
+  return (lat, lon, p) => {
+    // Storm geometry (also bends the bands around it).
+    let dLon = lon - g.storm.lon;
+    dLon -= Math.round(dLon / (Math.PI * 2)) * Math.PI * 2;
+    const sx = (dLon * Math.cos(lat)) / g.storm.w;
+    const sy = (lat - g.storm.lat) / g.storm.h;
+    const sr = Math.hypot(sx, sy);
+    const deflect = sr < 2.2 ? Math.exp(-sr * sr * 0.6) * Math.sign(sy || 1) * g.storm.h * 0.9 : 0;
+
+    // Shear eddies: strongest near band edges, stretched along longitude.
+    const eddy = (a(p.x * 7 + o, p.y * 16, p.z * 7, 5) - 0.5) * 0.1 + (d(p.x * 16 + o, p.y * 40, p.z * 16, 3) - 0.5) * 0.03;
+    const l = lat + eddy + deflect;
+
+    // Uneven band profile (about a dozen bands pole to pole, some faint), sharpened so belts have defined edges.
+    const raw = 0.5 + 0.5 * Math.sin(l * 15 + o + 1.4 * Math.sin(l * 4.3 + o * 2));
+    const strength = 0.55 + 0.45 * Math.sin(l * 5.1 + o * 3);
+    const beltness = smoothstep(0.4, 0.6, raw) * strength;
+
+    // Zonal streaks: noise stretched along longitude (slow in x/z, fast in y).
+    const streak = b(p.x * 3 + o, p.y * 34, p.z * 3, 6);
+    const fine = c(p.x * 14 + o, p.y * 70, p.z * 14, 3);
+    let col = mix(g.zone, g.belt, beltness * g.contrast * 0.85);
+    col = mix(col, g.deep, clamp01((streak - 0.55) * 2.6) * beltness * 0.8);
+    col = mix(col, g.zone, clamp01((0.42 - streak) * 2) * (1 - beltness) * 0.6);
+    const shade = 0.9 + (fine - 0.5) * 0.22 + (streak - 0.5) * 0.18;
+    col = [col[0] * shade, col[1] * shade, col[2] * shade];
+
+    // A string of small white ovals in the southern temperate belt.
+    const spacing = (Math.PI * 2) / 11;
+    let pLon = lon + o - spacing / 2;
+    pLon -= Math.round(pLon / spacing) * spacing;
+    const ovals = Math.exp(-(((pLon * Math.cos(lat)) / 0.03) ** 2) - ((lat + 0.68) / 0.022) ** 2);
+    col = mix(col, [250, 246, 238], ovals * 0.85);
+
+    // The great storm: swirling core, paler collar.
+    if (sr < 1.6) {
+      const ang = Math.atan2(sy, sx) + sr * 3;
+      const swirl = a(Math.cos(ang) * sr * 3 + o, Math.sin(ang) * sr * 3, 7, 4);
+      const core = smoothstep(1.05, 0.35, sr);
+      const collar = smoothstep(1.5, 1.1, sr) * (1 - core);
+      col = mix(col, g.storm.color, core * (0.75 + swirl * 0.35));
+      col = mix(col, mix(g.zone, [255, 250, 240], 0.4), collar * 0.7);
+    }
+
+    // Poles: banding fades into darker, mottled cyclone fields.
+    const polar = smoothstep(0.95, 1.35, Math.abs(lat));
+    if (polar > 0) {
+      const mottle = d(p.x * 9 + o, p.y * 9, p.z * 9, 5);
+      const cyclones = smoothstep(0.62, 0.75, c(p.x * 16, p.y * 16 + o, p.z * 16, 3));
+      col = mix(col, mix(g.pole, g.zone, cyclones * 0.5), polar * (0.7 + mottle * 0.3));
+    }
+
+    // Saturn's north polar hexagon.
+    if (g.hexagon && lat > 1.1) {
+      const r = Math.PI / 2 - lat;
+      const seg = ((((lon % (Math.PI / 3)) + Math.PI / 3) % (Math.PI / 3)) - Math.PI / 6);
+      const hex = (r * Math.cos(seg)) / Math.cos(Math.PI / 6);
+      const line = 1 - smoothstep(0.012, 0.03, Math.abs(hex - 0.3));
+      col = mix(col, g.deep, line * 0.55);
+    }
+
+    return [...col, 0, 0.04];
+  };
+}
 
 function samplers(): Record<PlanetKind, Sampler> {
   const a = makeNoise(11);
@@ -93,67 +189,71 @@ function samplers(): Record<PlanetKind, Sampler> {
   const c = makeNoise(53);
   const d = makeNoise(97);
 
+  const warp = (p: P, amount: number, freq = 1.6): P => ({
+    x: p.x + (d(p.x * freq, p.y * freq, p.z * freq, 4) - 0.5) * amount,
+    y: p.y + (d(p.x * freq + 31, p.y * freq + 17, p.z * freq + 5, 4) - 0.5) * amount,
+    z: p.z + (d(p.x * freq + 11, p.y * freq + 47, p.z * freq + 29, 4) - 0.5) * amount,
+  });
+  /** Fine grain added on top of every surface: keeps close-ups crisp. */
+  const grain = (p: P) => (c(p.x * 40, p.y * 40, p.z * 40, 2) - 0.5) * 0.1 + (a(p.x * 120, p.y * 120, p.z * 120, 2) - 0.5) * 0.06;
+
   return {
     // Ignis: black basalt split by glowing lava.
-    ember: (_lat, _lon, p) => {
-      const rock = a(p.x * 3, p.y * 3, p.z * 3, 6);
-      const crack = Math.max(vein(b(p.x * 2.2, p.y * 2.2, p.z * 2.2, 5), 0.035), vein(c(p.x * 4, p.y * 4, p.z * 4, 4), 0.025) * 0.7);
+    ember: (_lat, _lon, p0) => {
+      const p = warp(p0, 0.5);
+      const rock = a(p.x * 3, p.y * 3, p.z * 3, 8) + grain(p0);
+      const crack = Math.max(vein(b(p.x * 2.2, p.y * 2.2, p.z * 2.2, 7), 0.03), vein(c(p.x * 4.5, p.y * 4.5, p.z * 4.5, 6), 0.02) * 0.7);
       const base = ramp([[0, [22, 14, 12]], [0.5, [58, 34, 26]], [1, [96, 58, 40]]], rock);
       const lava = ramp([[0, [190, 40, 10]], [0.6, [255, 120, 20]], [1, [255, 226, 120]]], crack);
       const col = mix(base, lava, crack * 1.2);
       return [...col, crack * 0.95];
     },
-    // Aurelia: violet giant with magenta storms.
-    aurora: (lat, _lon, p) => {
-      const warp = (a(p.x * 2, p.y * 2, p.z * 2, 4) - 0.5) * 0.9;
-      const band = Math.sin((lat + warp * 0.35) * 10) * 0.5 + 0.5;
-      const swirl = b(p.x * 3 + warp, p.y * 9, p.z * 3, 5);
-      const col = ramp([[0, [46, 20, 110]], [0.35, [112, 52, 214]], [0.6, [190, 92, 240]], [0.85, [244, 140, 230]], [1, [255, 214, 250]]], band * 0.6 + swirl * 0.4);
-      return [...col, Math.max(0, swirl - 0.72) * 1.2];
-    },
+    // Aurelia: a violet Jupiter, with a magenta great storm.
+    aurora: giant(
+      { zone: [214, 198, 236], belt: [118, 74, 168], deep: [70, 36, 110], pole: [92, 84, 140], storm: { color: [214, 82, 168], lat: -0.38, lon: 2.2, w: 0.42, h: 0.17 }, contrast: 0.95, seed: 1.3 },
+      a, b, c, d,
+    ),
     // Thalassa: teal ocean world with coral islands and clouds.
-    ocean: (lat, _lon, p) => {
-      const land = a(p.x * 2.2, p.y * 2.2, p.z * 2.2, 6);
+    ocean: (lat, _lon, p0) => {
+      const p = warp(p0, 0.6);
+      const land = a(p.x * 2.2, p.y * 2.2, p.z * 2.2, 8) + grain(p0) * 0.4;
       let col: RGB =
         land > 0.6
-          ? ramp([[0, [232, 214, 160]], [0.3, [120, 200, 140]], [1, [40, 130, 100]]], (land - 0.6) / 0.4)
-          : ramp([[0, [6, 60, 84]], [0.7, [10, 150, 160]], [0.95, [80, 220, 210]], [1, [160, 240, 230]]], land / 0.6);
-      const cloud = b(p.x * 3 + 5, p.y * 6, p.z * 3, 5);
-      col = mix(col, [245, 252, 255], Math.max(0, (cloud - 0.56) * 2.6));
-      if (Math.abs(lat) > 1.3) col = mix(col, [235, 250, 252], 0.85);
-      return [...col, 0];
+          ? ramp([[0, [214, 196, 146]], [0.15, [128, 168, 96]], [0.5, [64, 120, 76]], [0.85, [120, 110, 92]], [1, [210, 210, 214]]], (land - 0.6) / 0.4 + grain(p0))
+          : ramp([[0, [4, 34, 62]], [0.6, [8, 96, 132]], [0.9, [24, 168, 176]], [1, [120, 220, 210]]], land / 0.6);
+      if (Math.abs(lat) > 1.32 - grain(p0)) col = mix(col, [236, 246, 250], 0.9);
+      // Open water shines, land does not.
+      return [...col, 0, land > 0.6 ? 0.02 : 0.9];
     },
     // Cryo: pale crystal ice with luminous fractures.
-    crystal: (_lat, _lon, p) => {
-      const facet = a(p.x * 5, p.y * 5, p.z * 5, 3);
-      const fracture = vein(b(p.x * 3, p.y * 3, p.z * 3, 5), 0.03);
+    crystal: (_lat, _lon, p0) => {
+      const p = warp(p0, 0.35, 2.4);
+      const facet = a(p.x * 5, p.y * 5, p.z * 5, 5) + grain(p0);
+      const fracture = Math.max(vein(b(p.x * 3, p.y * 3, p.z * 3, 7), 0.022), vein(c(p.x * 7, p.y * 7, p.z * 7, 5), 0.015) * 0.6);
       const col = mix(ramp([[0, [140, 190, 230]], [0.5, [200, 230, 250]], [1, [250, 254, 255]]], facet), [120, 240, 255], fracture);
-      return [...col, fracture * 0.8];
+      return [...col, fracture * 0.8, 0.45];
     },
     // Silva: emerald jungle crossed by bioluminescent rivers.
-    jungle: (_lat, _lon, p) => {
-      const canopy = a(p.x * 3.5, p.y * 3.5, p.z * 3.5, 6);
-      const river = vein(b(p.x * 1.8, p.y * 1.8, p.z * 1.8, 5), 0.028);
+    jungle: (_lat, _lon, p0) => {
+      const p = warp(p0, 0.5);
+      const canopy = a(p.x * 3.5, p.y * 3.5, p.z * 3.5, 8) + grain(p0);
+      const river = vein(b(p.x * 1.8, p.y * 1.8, p.z * 1.8, 7), 0.022);
       let col = ramp([[0, [8, 60, 36]], [0.45, [26, 120, 62]], [0.75, [72, 176, 84]], [1, [160, 220, 110]]], canopy);
       const mist = c(p.x * 4, p.y * 4, p.z * 4, 4);
       col = mix(col, [220, 255, 230], Math.max(0, (mist - 0.65) * 2));
       col = mix(col, [120, 255, 200], river);
-      return [...col, river * 0.85];
+      return [...col, river * 0.85, 0.04 + river * 0.6];
     },
-    // Aurum: polished gold bands.
-    gold: (lat, _lon, p) => {
-      const warp = (a(p.x * 2, p.y * 2, p.z * 2, 4) - 0.5) * 0.25;
-      const band = Math.sin((lat + warp) * 16) * 0.5 + 0.5;
-      const col = ramp([[0, [140, 92, 30]], [0.4, [214, 160, 60]], [0.75, [250, 214, 120]], [1, [255, 244, 200]]], band * 0.7 + b(p.x, p.y * 20, p.z, 3) * 0.3);
-      return [...col, 0];
-    },
-    // Rosalia: coral and peach pastel giant.
-    rose: (lat, _lon, p) => {
-      const warp = (a(p.x * 2.5, p.y * 2.5, p.z * 2.5, 4) - 0.5) * 0.6;
-      const band = Math.sin((lat + warp * 0.3) * 8) * 0.5 + 0.5;
-      const col = ramp([[0, [190, 60, 110]], [0.4, [240, 120, 150]], [0.7, [255, 176, 170]], [1, [255, 226, 210]]], band * 0.65 + b(p.x * 3, p.y * 7, p.z * 3, 5) * 0.35);
-      return [...col, 0];
-    },
+    // Aurum: a golden Saturn: subtle butterscotch bands and the polar hexagon.
+    gold: giant(
+      { zone: [246, 222, 168], belt: [198, 152, 84], deep: [150, 104, 50], pole: [170, 160, 140], storm: { color: [255, 238, 200], lat: 0.62, lon: 4.1, w: 0.16, h: 0.07 }, contrast: 0.55, seed: 4.7, hexagon: true },
+      a, b, c, d,
+    ),
+    // Rosalia: a coral Jupiter with a cream great storm.
+    rose: giant(
+      { zone: [252, 222, 206], belt: [214, 112, 120], deep: [150, 60, 82], pole: [170, 130, 150], storm: { color: [196, 70, 70], lat: -0.4, lon: 5.2, w: 0.38, h: 0.15 }, contrast: 0.85, seed: 2.9 },
+      a, b, c, d,
+    ),
     // Aegis: dark indigo world wrapped in a glowing shield lattice.
     aegis: (lat, lon, p) => {
       const ground = a(p.x * 3, p.y * 3, p.z * 3, 5);
@@ -167,32 +267,147 @@ function samplers(): Record<PlanetKind, Sampler> {
   };
 }
 
-const cache = new Map<PlanetKind, Uint8ClampedArray>();
+export type PlanetTexture = {
+  w: number;
+  h: number;
+  /** RGBA, A = emission. */
+  rgba: Uint8ClampedArray;
+  /** Specular strength per texel. */
+  spec: Uint8ClampedArray;
+  /** Cloud density per texel, drawn as a separate, faster-moving layer (null: no clouds). */
+  clouds: Uint8ClampedArray | null;
+};
+
+/** Worlds with a weather layer, and how cloudy they are. */
+const CLOUDS: Partial<Record<PlanetKind, { cover: number; stretch: number }>> = {
+  ocean: { cover: 0.52, stretch: 3 },
+  jungle: { cover: 0.6, stretch: 2.2 },
+  crystal: { cover: 0.66, stretch: 4 },
+  aegis: { cover: 0.68, stretch: 2 },
+};
+
+/** Relief strength: rocky worlds get deep shading, gas giants stay smooth. */
+const RELIEF: Record<PlanetKind, number> = {
+  ember: 3.2,
+  aurora: 0.5,
+  ocean: 1.6,
+  crystal: 2.6,
+  jungle: 2.4,
+  gold: 0.4,
+  rose: 0.5,
+  aegis: 1.8,
+};
+
 let all: Record<PlanetKind, Sampler> | null = null;
 
-/** RGBA texture (A = emission), TEX_W × TEX_H × 4, generated once per kind and cached. */
-export function planetTexture(kind: PlanetKind): Uint8ClampedArray {
-  const hit = cache.get(kind);
-  if (hit) return hit;
-  all ??= samplers();
-  const sample = all[kind];
-  const tex = new Uint8ClampedArray(TEX_W * TEX_H * 4);
-  for (let y = 0; y < TEX_H; y++) {
-    const lat = (0.5 - (y + 0.5) / TEX_H) * Math.PI;
-    const cl = Math.cos(lat), sl = Math.sin(lat);
-    for (let x = 0; x < TEX_W; x++) {
-      const lon = ((x + 0.5) / TEX_W) * Math.PI * 2;
-      const t = sample(lat, lon, { x: cl * Math.cos(lon), y: sl, z: cl * Math.sin(lon) });
-      const i = (y * TEX_W + x) * 4;
-      tex[i] = t[0];
-      tex[i + 1] = t[1];
-      tex[i + 2] = t[2];
-      tex[i + 3] = clamp01(t[3]) * 255;
+/**
+ * Builds the texture of a world (pure computation, no DOM). Runs inside a
+ * Web Worker so the page never stutters; the relief pass bakes subtle shading
+ * from the surface's own brightness so craters, ridges and coasts read as 3D.
+ */
+export function generateTexture(kind: PlanetKind, w: number): PlanetTexture {
+  const h = w / 2;
+    all ??= samplers();
+    const sample = all[kind];
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    const spec = new Uint8ClampedArray(w * h);
+    const lum = new Float32Array(w * h);
+    const cloudCfg = CLOUDS[kind];
+    const clouds = cloudCfg ? new Uint8ClampedArray(w * h) : null;
+    const cn = makeNoise(71);
+    const cw = makeNoise(83);
+    for (let y = 0; y < h; y++) {
+      const lat = (0.5 - (y + 0.5) / h) * Math.PI;
+      const cl = Math.cos(lat), sl = Math.sin(lat);
+      for (let x = 0; x < w; x++) {
+        const lon = ((x + 0.5) / w) * Math.PI * 2;
+        const t = sample(lat, lon, { x: cl * Math.cos(lon), y: sl, z: cl * Math.sin(lon) });
+        const i = y * w + x;
+        rgba[i * 4] = t[0];
+        rgba[i * 4 + 1] = t[1];
+        rgba[i * 4 + 2] = t[2];
+        rgba[i * 4 + 3] = clamp01(t[3]) * 255;
+        spec[i] = clamp01(t[4] ?? 0.06) * 255;
+        lum[i] = (t[0] * 0.3 + t[1] * 0.59 + t[2] * 0.11) / 255;
+        if (clouds && cloudCfg) {
+          const px = cl * Math.cos(lon), pz = cl * Math.sin(lon);
+          // Warped, latitude-stretched noise: long streaks like real weather systems.
+          const wx = (cw(px * 2, sl * 2, pz * 2, 3) - 0.5) * 0.8;
+          const v = cn(px * 3 + wx, sl * 3 * cloudCfg.stretch, pz * 3 + wx, 7);
+          clouds[i] = clamp01((v - cloudCfg.cover) * 3.2) * 255;
+        }
+      }
     }
-  }
-  cache.set(kind, tex);
-  return tex;
+    // Relief: light comes from the upper left, so a surface rising to the right is darker.
+    const k = RELIEF[kind];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const dx = lum[y * w + ((x + 1) % w)] - lum[y * w + ((x - 1 + w) % w)];
+        const dy = lum[(y + 1) * w + x] - lum[(y - 1) * w + x];
+        const relief = 1 - (dx * 0.8 + dy * 0.5) * k;
+        if (rgba[i * 4 + 3] > 40) continue; // glowing parts are not shaded
+        rgba[i * 4] *= relief;
+        rgba[i * 4 + 1] *= relief;
+        rgba[i * 4 + 2] *= relief;
+      }
+    }
+    return { w, h, rgba, spec, clouds };
 }
+
+const cache = new Map<string, Promise<PlanetTexture>>();
+type Pending = { resolve: (t: PlanetTexture) => void };
+let pool: Worker[] | null = null;
+let nextWorker = 0;
+let seq = 0;
+const pending = new Map<number, Pending>();
+
+function workers(): Worker[] | null {
+  if (pool || typeof window === "undefined" || typeof Worker === "undefined") return pool;
+  try {
+    const count = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+    pool = Array.from({ length: count }, () => {
+      const w = new Worker(new URL("./texture-worker.ts", import.meta.url));
+      w.onmessage = (e: MessageEvent<{ id: number; texture: PlanetTexture }>) => {
+        pending.get(e.data.id)?.resolve(e.data.texture);
+        pending.delete(e.data.id);
+      };
+      return w;
+    });
+  } catch {
+    pool = null;
+  }
+  return pool;
+}
+
+/** Texture of a world at a given width: generated once in a worker, then cached. */
+export function loadPlanetTexture(kind: PlanetKind, width: number): Promise<PlanetTexture> {
+  const key = `${kind}:${width}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const ws = workers();
+  const job = ws
+    ? new Promise<PlanetTexture>((resolve) => {
+        const id = ++seq;
+        pending.set(id, { resolve });
+        ws[nextWorker++ % ws.length].postMessage({ id, kind, width });
+      })
+    : new Promise<PlanetTexture>((resolve) => setTimeout(() => resolve(generateTexture(kind, width)), 0));
+  cache.set(key, job);
+  return job;
+}
+
+/** Limb darkening exponent: gas giants fade strongly towards the edge, rocky worlds barely. */
+export const LIMB: Record<PlanetKind, number> = {
+  ember: 0.15,
+  aurora: 0.55,
+  ocean: 0.25,
+  crystal: 0.15,
+  jungle: 0.25,
+  gold: 0.5,
+  rose: 0.55,
+  aegis: 0.25,
+};
 
 /** Atmosphere colour drawn on the lit limb (null: airless). */
 export const ATMOSPHERE: Record<PlanetKind, RGB | null> = {

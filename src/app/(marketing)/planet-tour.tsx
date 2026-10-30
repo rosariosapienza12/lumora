@@ -12,7 +12,9 @@ import {
   useVelocity,
   type MotionValue,
 } from "motion/react";
+import Link from "next/link";
 import { PlanetCanvas } from "@/components/planets/planet-canvas";
+import { loadPlanetTexture, RINGED } from "@/components/planets/textures";
 import { FEATURES, tourAnchor, type Feature } from "./features";
 import { FeatureDemo } from "./feature-demos";
 import { WarpField } from "./warp-field";
@@ -81,6 +83,11 @@ export function PlanetTour() {
   const reduce = useReducedMotion();
   useSnapToStops(sectionRef, reduce);
 
+  // Prepare every world in arrival order (in workers), so planets are ready before you reach them.
+  useEffect(() => {
+    for (const f of FEATURES) loadPlanetTexture(f.kind, 256).then(() => loadPlanetTexture(f.kind, 1024));
+  }, []);
+
   useMotionValueEvent(position, "change", (v) => setActive(Math.max(0, Math.min(N - 1, Math.round(v)))));
 
   const mobile = vp.w < 768;
@@ -119,14 +126,14 @@ export function PlanetTour() {
           <div className="absolute inset-0" aria-hidden>
             {FEATURES.map((f, i) =>
               Math.abs(i - active) <= 1 ? (
-                <TourPlanet key={f.id} feature={f} index={i} position={position} size={planetSize} stageX={stageX} stageY={stageY} vp={vp} mobile={mobile} />
+                <TourPlanet key={f.id} feature={f} index={i} still={i !== active} position={position} size={planetSize} stageX={stageX} stageY={stageY} vp={vp} mobile={mobile} />
               ) : null,
             )}
           </div>
 
           <div className={`absolute z-10 ${mobile ? "inset-x-5 bottom-[4.5rem] top-[47%]" : "right-28 top-1/2 w-[38%] max-w-md -translate-y-1/2"}`}>
             <AnimatePresence mode="wait">
-              <FeatureCopy key={feature.id} feature={feature} index={active} reduce={Boolean(reduce)} mobile={mobile} />
+              <FeatureCopy key={feature.id} feature={feature} reduce={Boolean(reduce)} mobile={mobile} />
             </AnimatePresence>
           </div>
 
@@ -194,6 +201,7 @@ export function PlanetTour() {
 function TourPlanet({
   feature,
   index,
+  still,
   position,
   size,
   stageX,
@@ -203,6 +211,7 @@ function TourPlanet({
 }: {
   feature: Feature;
   index: number;
+  still: boolean;
   position: MotionValue<number>;
   size: number;
   stageX: number;
@@ -231,12 +240,13 @@ function TourPlanet({
       <div className="tour-orbit absolute inset-[-22%] rounded-full border" style={{ borderColor: `${feature.glow}30` }}>
         <span className="absolute -top-1.5 left-1/2 size-3 -translate-x-1/2 rounded-full" style={{ background: feature.glow, boxShadow: `0 0 12px ${feature.glow}` }} />
       </div>
-      <PlanetCanvas kind={feature.kind} size={size} spin={feature.period * 1.4} tilt={feature.kind === "rose" ? 0.6 : 0.22} className="relative block" />
+      {/* A ringed world is drawn smaller so its rings stay inside the planet column. */}
+      <PlanetCanvas kind={feature.kind} size={RINGED.has(feature.kind) ? Math.round(size * 0.62) : size} spin={feature.period * 1.4} still={still} tilt={feature.kind === "rose" ? 0.6 : 0.22} className="relative block" />
     </motion.div>
   );
 }
 
-function FeatureCopy({ feature, index, reduce, mobile }: { feature: Feature; index: number; reduce: boolean; mobile: boolean }) {
+function FeatureCopy({ feature, reduce, mobile }: { feature: Feature; reduce: boolean; mobile: boolean }) {
   const item = {
     hidden: { opacity: 0, y: 22, filter: "blur(8px)" },
     shown: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: reduce ? 0 : 0.55, ease: EASE } },
@@ -251,45 +261,56 @@ function FeatureCopy({ feature, index, reduce, mobile }: { feature: Feature; ind
       className="flex h-full flex-col justify-center"
     >
       <motion.p variants={item} className="flex items-center gap-2.5 text-sm font-medium text-white/65">
-        <span className="font-display text-base font-bold" style={{ color: feature.glow }}>
-          {String(index + 1).padStart(2, "0")}
-        </span>
-        <span aria-hidden className="h-px w-8" style={{ background: `${feature.glow}90` }} />
+        <span aria-hidden className="size-2 rounded-full" style={{ background: feature.glow, boxShadow: `0 0 10px ${feature.glow}` }} />
         Pianeta {feature.planet}
       </motion.p>
 
-      <h2 className="mt-2 font-display text-4xl font-extrabold tracking-tight text-white sm:text-6xl" aria-label={feature.title}>
-        {feature.title.split("").map((ch, i) => (
-          <motion.span
-            key={i}
-            aria-hidden
-            className="inline-block"
-            variants={{
-              hidden: { opacity: 0, y: "0.6em", rotateX: -70 },
-              shown: { opacity: 1, y: 0, rotateX: 0, transition: { duration: reduce ? 0 : 0.6, delay: reduce ? 0 : 0.1 + i * 0.025, ease: EASE } },
-              gone: { opacity: 0, transition: { duration: 0.15 } },
-            }}
-            style={{ textShadow: `0 0 36px ${feature.glow}70`, whiteSpace: "pre" }}
-          >
-            {ch}
-          </motion.span>
-        ))}
+      <h2 className="mt-2 text-balance font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-5xl" aria-label={feature.title}>
+        {/* Letters animate one by one, but each word is an unbreakable block: lines only wrap between words. */}
+        {feature.title.split(" ").map((word, w, words) => {
+          const before = words.slice(0, w).join(" ").length + (w > 0 ? 1 : 0);
+          return (
+            <span key={w} aria-hidden>
+              <span className="inline-block whitespace-nowrap">
+                {word.split("").map((ch, i) => (
+                  <motion.span
+                    key={i}
+                    className="inline-block"
+                    variants={{
+                      hidden: { opacity: 0, y: "0.6em", rotateX: -70 },
+                      shown: { opacity: 1, y: 0, rotateX: 0, transition: { duration: reduce ? 0 : 0.6, delay: reduce ? 0 : 0.1 + (before + i) * 0.025, ease: EASE } },
+                      gone: { opacity: 0, transition: { duration: 0.15 } },
+                    }}
+                    style={{ textShadow: `0 0 36px ${feature.glow}70` }}
+                  >
+                    {ch}
+                  </motion.span>
+                ))}
+              </span>
+              {w < words.length - 1 ? " " : null}
+            </span>
+          );
+        })}
       </h2>
 
       <motion.p variants={item} className="mt-3 text-base leading-relaxed text-white/80 sm:text-lg">
         {feature.tagline}
       </motion.p>
 
-      {!mobile && (
-        <motion.ul variants={item} className="mt-4 flex flex-col gap-1.5 text-sm text-white/75">
-          {feature.points.map((pt) => (
-            <li key={pt} className="flex items-start gap-2.5">
-              <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rotate-45" style={{ background: feature.glow, boxShadow: `0 0 8px ${feature.glow}` }} />
-              {pt}
-            </li>
-          ))}
-        </motion.ul>
-      )}
+      <motion.ul variants={item} aria-label="Strumenti" className="mt-4 flex flex-wrap gap-1.5">
+        {(mobile ? feature.tools.slice(0, 4) : feature.tools).map((tool, i) => (
+          <motion.li
+            key={tool}
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: reduce ? 0 : 0.35 + i * 0.04, duration: 0.3 }}
+            className="rounded-full border px-2.5 py-1 text-xs text-white/85"
+            style={{ borderColor: `${feature.glow}55`, background: `${feature.glow}14` }}
+          >
+            {tool}
+          </motion.li>
+        ))}
+      </motion.ul>
 
       <motion.div variants={item} className="mt-5">
         <div className="tour-demo-border rounded-[18px] p-px" style={{ "--glow": feature.glow } as CSSProperties}>
@@ -300,6 +321,16 @@ function FeatureCopy({ feature, index, reduce, mobile }: { feature: Feature; ind
             </div>
           </div>
         </div>
+      </motion.div>
+
+      <motion.div variants={item} className="mt-4">
+        <Link
+          href={`/crea/${feature.id}`}
+          className="group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-[#120d26] transition-transform hover:scale-[1.03] active:scale-[0.98]"
+          style={{ background: feature.glow, boxShadow: `0 10px 30px -10px ${feature.glow}` }}
+        >
+          Crea con {feature.title.toLowerCase()}
+        </Link>
       </motion.div>
     </motion.div>
   );

@@ -13,12 +13,13 @@ const KINDS = [
   { value: "STUDENT", label: "Studio", detail: "Progetti, tesine ed esposizioni" },
 ] as const;
 
-export function SignupForm() {
+export function SignupForm({ next }: { next?: string | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(signupAction, {});
   const [kind, setKind] = useState(state.values?.kind ?? "");
 
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
+      {next && <input type="hidden" name="dopo" value={next} />}
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">Per cosa userai Lumora?</legend>
         {KINDS.map((k) => (

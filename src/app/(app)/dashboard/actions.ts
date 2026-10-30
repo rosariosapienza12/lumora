@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireUser, touchSession } from "@/lib/auth/session";
 import { countAll, docBytes, getOwnedPresentation, MAX_PRESENTATIONS, STORAGE_QUOTA_BYTES, storageUsed } from "@/lib/presentations";
-import { starterDocument } from "@/lib/editor/schema";
+import { buildTemplate, isTemplateId, TEMPLATES } from "@/lib/editor/templates";
 import type { Prisma } from "@/generated/prisma/client";
 
 const idSchema = z.string().regex(/^[a-z0-9]{20,32}$/);
@@ -26,11 +26,13 @@ async function canAdd(userId: string, bytes: number) {
   return (await storageUsed(userId)) + bytes <= STORAGE_QUOTA_BYTES;
 }
 
-export async function createPresentationAction() {
+export async function createPresentationAction(formData: FormData) {
   const user = await requireUser();
   await touchSession();
-  const title = "Presentazione senza titolo";
-  const content = starterDocument(title);
+  const template = formData.get("template");
+  const id = isTemplateId(template) ? template : "vuota";
+  const title = id === "vuota" ? "Presentazione senza titolo" : (TEMPLATES.find((t) => t.id === id)?.name ?? "Presentazione");
+  const content = buildTemplate(id, title);
   if (!(await canAdd(user.id, docBytes(content)))) throw new Error("Limit reached");
 
   const p = await db.presentation.create({

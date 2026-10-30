@@ -20,6 +20,7 @@ import {
   recoveryCodeSchema,
   signupSchema,
   totpCodeSchema,
+  safeNext,
   type FormState,
 } from "@/lib/validation";
 
@@ -44,6 +45,8 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
     terms: str(formData, "terms"),
   };
   const values = { kind: raw.kind, name: raw.name, email: raw.email };
+  const next = safeNext(str(formData, "dopo"));
+  const nextQuery = next ? `&dopo=${encodeURIComponent(next)}` : "";
 
   const parsed = signupSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
@@ -78,7 +81,7 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
     queueMail({
       to: email,
       subject: "Conferma la tua email su Lumora",
-      text: `Ciao ${name},\nconferma il tuo indirizzo aprendo questo link (valido 24 ore):\n${env.APP_URL}/verifica-email?token=${token}`,
+      text: `Ciao ${name},\nconferma il tuo indirizzo aprendo questo link (valido 24 ore):\n${env.APP_URL}/verifica-email?token=${token}${nextQuery}`,
     });
     await audit("signup", user.id, { kind });
   }
@@ -93,7 +96,8 @@ export async function verifyEmailAction(formData: FormData) {
   if (!userId) redirect("/verifica-email?esito=non-valido");
   await db.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date() } });
   await audit("email.verified", userId);
-  redirect("/accedi?verificata=1");
+  const next = safeNext(str(formData, "dopo"));
+  redirect(next ? `/accedi?verificata=1&dopo=${encodeURIComponent(next)}` : "/accedi?verificata=1");
 }
 
 // ── Log in ────────────────────────────────────────────────────────────────
@@ -101,6 +105,7 @@ export async function verifyEmailAction(formData: FormData) {
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const raw = { email: str(formData, "email"), password: str(formData, "password") };
   const values = { email: raw.email };
+  const next = safeNext(str(formData, "dopo"));
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
   const { email, password } = parsed.data;
@@ -149,12 +154,12 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
 
   if (user.totpEnabledAt && user.totpSecretEnc) {
     await createSession(user.id, true);
-    redirect("/accedi/verifica");
+    redirect(next ? `/accedi/verifica?dopo=${encodeURIComponent(next)}` : "/accedi/verifica");
   }
 
   await createSession(user.id);
   await audit("login.success", user.id);
-  redirect("/dashboard");
+  redirect(next ?? "/dashboard");
 }
 
 export async function twoFactorAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -210,7 +215,7 @@ export async function twoFactorAction(_prev: FormState, formData: FormData): Pro
   await destroySession();
   await createSession(user.id);
   await audit("login.success", user.id, { twoFactor: true });
-  redirect("/dashboard");
+  redirect(safeNext(str(formData, "dopo")) ?? "/dashboard");
 }
 
 export async function logoutAction() {

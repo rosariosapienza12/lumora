@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ButtonLink, Logo } from "@/components/ui";
+import { Assistant } from "@/components/assistant/assistant";
 
 // Light field behind the glass panels: the brand's colours, drifting slowly.
 const LIGHTS = [
@@ -14,7 +15,7 @@ export default function MarketingLayout({ children }: LayoutProps<"/">) {
     <div className="flex min-h-screen flex-col">
       <div className="glass-sky" aria-hidden>
         {LIGHTS.map((l) => (
-          <span key={l.color} style={{ background: l.color, ...l.style }} />
+          <span key={l.color} style={{ "--light": l.color, ...l.style } as unknown as React.CSSProperties} />
         ))}
       </div>
 
@@ -51,6 +52,7 @@ export default function MarketingLayout({ children }: LayoutProps<"/">) {
           </nav>
         </div>
       </footer>
+      <Assistant />
     </div>
   );
 }

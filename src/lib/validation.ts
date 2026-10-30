@@ -34,6 +34,14 @@ export const totpCodeSchema = z.string().trim().regex(/^\d{3}\s?\d{3}$/, "Il cod
 
 export const recoveryCodeSchema = z.string().trim().min(16).max(30);
 
+/**
+ * Where to go after signing in. Only a fixed set of internal paths is
+ * accepted, so a crafted link cannot send people to another site (open redirect).
+ */
+export function safeNext(value: unknown): string | null {
+  return typeof value === "string" && /^\/crea\/[a-z]{3,20}$/.test(value) ? value : null;
+}
+
 /** Flattens zod errors to { field: firstMessage } for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};

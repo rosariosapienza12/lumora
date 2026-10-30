@@ -32,7 +32,7 @@ export function WarpField({
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     let w = 0, h = 0;
     const resize = () => {
       w = canvas.clientWidth;
@@ -45,7 +45,7 @@ export function WarpField({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const COUNT = 420;
+    const COUNT = 260;
     const stars = Array.from({ length: COUNT }, () => ({ x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: Math.random() }));
     let speed = 0;
     let raf = 0;

@@ -18,7 +18,9 @@ export async function getPublished(slug: string) {
   if (!p || p.visibility !== "LINK" || p.deletedAt) return null;
   const doc = documentSchema.safeParse(p.content);
   if (!doc.success) return null;
-  return { title: p.title, doc: doc.data, passwordHash: p.sharePasswordHash };
+  // Speaker notes are private to the author: never send them to viewers.
+  const publicDoc = { ...doc.data, pages: doc.data.pages.map((page) => ({ ...page, notes: undefined })) };
+  return { title: p.title, doc: publicDoc, passwordHash: p.sharePasswordHash };
 }
 
 const cookieName = (slug: string) => `lv_${sha256(slug).slice(0, 16)}`;

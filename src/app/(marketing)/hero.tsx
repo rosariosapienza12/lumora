@@ -1,60 +1,74 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { ButtonLink } from "@/components/ui";
 import { SolarSystem } from "./solar-system";
 
-const lines = ["Presentazioni", "che si lasciano", "esplorare."];
+const EASE = [0.22, 1, 0.36, 1] as const;
+const words = ["Presentazioni", "che", "si", "lasciano", "esplorare."];
 
+/**
+ * Opening scene: the Lumora system fills the screen. The title rises out of
+ * the dark above the orbit plane (never over it), then a cue invites the
+ * visitor to fly through the worlds below.
+ */
 export function Hero() {
+  const reduce = useReducedMotion();
   return (
-    <section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-20 pt-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:pt-16">
-      <div>
-        <h1 className="font-display text-[clamp(2.75rem,6vw,5rem)] font-extrabold leading-[0.95] tracking-tight">
-          {lines.map((line, i) => (
+    <section className="relative -mt-[4.5rem] h-svh min-h-[560px] overflow-hidden">
+      <SolarSystem />
+      {/* Vignette: draws the eye to the centre and fades into the page below. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 40%, transparent 75%, rgba(5,4,15,0.45) 100%), linear-gradient(to bottom, transparent 90%, rgba(5,4,15,1))" }} />
+
+      <div data-hero-copy className="pointer-events-none relative z-10 mx-auto flex max-w-6xl flex-col items-center px-5 pt-[16svh] text-center text-white">
+        <h1 className="font-display text-[clamp(2.6rem,7vw,6rem)] font-extrabold leading-[0.95] tracking-tight" aria-label="Presentazioni che si lasciano esplorare.">
+          {words.map((w, i) => (
             <motion.span
-              key={line}
-              className="block"
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+              key={w}
+              aria-hidden
+              className="hero-word mr-[0.25em] inline-block"
+              initial={reduce ? false : { opacity: 0, y: 40, filter: "blur(12px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ duration: 0.9, delay: 0.6 + i * 0.12, ease: EASE }}
+              style={{ textShadow: "0 0 40px rgba(255,181,71,0.25)" }}
             >
-              {line}
+              {w}
             </motion.span>
           ))}
         </h1>
         <motion.p
-          className="mt-6 max-w-md text-lg text-ink-soft"
-          initial={{ opacity: 0 }}
+          className="mt-5 max-w-2xl text-lg text-white/75"
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.55, duration: 0.6 }}
+          transition={{ delay: 1.5, duration: 0.8 }}
         >
-          Con Lumora aggiungi hotspot, finestre, domande e animazioni a lezioni, corsi e presentazioni. Chi guarda clicca,
-          scopre e partecipa. Nessun codice da scrivere.
+          Ogni pianeta è uno strumento per creare la tua presentazione. Tocca un pianeta per aprirlo, trascina per far girare le orbite, oppure scorri e attraversa il sistema.
         </motion.p>
-        <motion.div className="mt-8 flex flex-wrap gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
+        <motion.div
+          className="pointer-events-auto mt-7 flex flex-wrap justify-center gap-3"
+          initial={reduce ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.8, duration: 0.6 }}
+        >
           <ButtonLink href="/registrati" className="px-6 py-3 text-base">
             Crea un account gratis
           </ButtonLink>
-          <ButtonLink href="/accedi" variant="outline" className="px-6 py-3 text-base">
-            Accedi
+          <ButtonLink href="#viaggio" variant="ghost" className="px-6 py-3 text-base text-white hover:bg-white/10">
+            Esplora le funzioni
           </ButtonLink>
         </motion.div>
       </div>
 
-      <motion.figure
-        initial={{ opacity: 0, scale: 0.96, rotate: -1.5 }}
-        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-        transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      <motion.a
+        href="#viaggio"
+        className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2 text-xs text-white/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 2.4 }}
       >
-        <div className="shadow-[0_40px_90px_-30px_rgba(91,61,245,0.55)] rounded-[28px]">
-          <SolarSystem />
-        </div>
-        <figcaption className="mt-3 flex items-center gap-2 text-sm text-ink-soft">
-          <span className="inline-block size-2.5 rounded-full bg-amber" aria-hidden />
-          Ogni pianeta è una funzione di Lumora. Toccane uno e segui la luce.
-        </figcaption>
-      </motion.figure>
+        Scorri per attraversare il sistema
+        <motion.span aria-hidden className="block h-8 w-px origin-top bg-gradient-to-b from-white/70 to-transparent" animate={reduce ? undefined : { scaleY: [0.3, 1, 0.3] }} transition={{ duration: 1.8, repeat: Infinity }} />
+      </motion.a>
     </section>
   );
 }

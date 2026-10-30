@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+﻿import { NextResponse, type NextRequest } from "next/server";
 
 function buildCsp(nonce: string, isDev: boolean, embeddable: boolean) {
   return [
@@ -11,6 +11,8 @@ function buildCsp(nonce: string, isDev: boolean, embeddable: boolean) {
     `font-src 'self'`,
     `connect-src 'self'${isDev ? " ws:" : ""}`,
     `frame-src 'none'`,
+    // Planet textures are generated in same-origin Web Workers.
+    `worker-src 'self' blob:`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,
@@ -32,7 +34,9 @@ function isCrossOrigin(request: NextRequest) {
   if (SAFE_METHODS.has(request.method)) return false;
   const origin = request.headers.get("origin");
   if (!origin) return true;
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  // X-Forwarded-Host is client-controlled unless a reverse proxy we run overwrites it.
+  const behindProxy = Number(process.env.TRUSTED_PROXY_HOPS ?? 0) > 0;
+  const host = (behindProxy && request.headers.get("x-forwarded-host")) || request.headers.get("host");
   try {
     return new URL(origin).host !== host;
   } catch {
@@ -40,9 +44,22 @@ function isCrossOrigin(request: NextRequest) {
   }
 }
 
+const ALLOWED_METHODS = new Set([...SAFE_METHODS, "POST"]);
+
 export function proxy(request: NextRequest) {
+  if (!ALLOWED_METHODS.has(request.method)) {
+    return new NextResponse("Method Not Allowed", { status: 405, headers: { Allow: [...ALLOWED_METHODS].join(", ") } });
+  }
   if (isCrossOrigin(request)) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  // Uploaded images: keep the route's own locked-down policy (no scripts, sandboxed).
+  if (request.nextUrl.pathname.startsWith("/a/")) {
+    const response = NextResponse.next();
+    response.headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
+    response.headers.set("X-Frame-Options", "DENY");
+    return response;
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");

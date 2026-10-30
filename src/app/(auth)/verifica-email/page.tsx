@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { verifyEmailAction } from "../actions";
 import { Button } from "@/components/ui";
+import { safeNext } from "@/lib/validation";
 
 export const metadata: Metadata = { title: "Conferma email", robots: { index: false } };
 
 export default async function VerifyEmailPage({ searchParams }: PageProps<"/verifica-email">) {
-  const { token, esito } = await searchParams;
+  const { token, esito, dopo } = await searchParams;
+  const next = safeNext(dopo);
 
   if (esito === "non-valido" || typeof token !== "string") {
     return (
@@ -28,6 +30,7 @@ export default async function VerifyEmailPage({ searchParams }: PageProps<"/veri
       <h1 className="font-display text-3xl font-bold tracking-tight">Conferma la tua email</h1>
       <p className="text-ink-soft">Ultimo passo: conferma che questo indirizzo è tuo.</p>
       <input type="hidden" name="token" value={token} />
+      {next && <input type="hidden" name="dopo" value={next} />}
       <Button type="submit">Conferma email</Button>
     </form>
   );

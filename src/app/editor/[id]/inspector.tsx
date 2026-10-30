@@ -2,8 +2,8 @@
 
 import type { ReactNode } from "react";
 import type { Element, Interaction, Page, PresentationDoc } from "@/lib/editor/schema";
-import { EMPHASIS_ANIMATIONS, ENTER_ANIMATIONS, TRANSITIONS } from "@/lib/editor/schema";
-import type { Action } from "./store";
+import { EMPHASIS_ANIMATIONS, ENTER_ANIMATIONS, FONT_FAMILY, FONT_LABELS, FONTS, TRANSITIONS, type FontId } from "@/lib/editor/schema";
+import type { Action, Align } from "./store";
 
 const ENTER_LABELS: Record<(typeof ENTER_ANIMATIONS)[number], string> = {
   none: "Nessuna",
@@ -31,6 +31,16 @@ const TRANSITION_LABELS: Record<(typeof TRANSITIONS)[number], string> = {
 };
 
 const inputCls = "w-full rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm outline-none focus:border-violet";
+const chip = "rounded-full border border-line px-2.5 py-1 text-xs hover:border-violet aria-pressed:border-violet aria-pressed:bg-violet/10";
+
+const ALIGN: { to: Align; label: string; icon: string }[] = [
+  { to: "left", label: "Allinea a sinistra", icon: "⇤" },
+  { to: "hcenter", label: "Centra in orizzontale", icon: "↔" },
+  { to: "right", label: "Allinea a destra", icon: "⇥" },
+  { to: "top", label: "Allinea in alto", icon: "⤒" },
+  { to: "vcenter", label: "Centra in verticale", icon: "↕" },
+  { to: "bottom", label: "Allinea in basso", icon: "⤓" },
+];
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -58,8 +68,61 @@ function Num({ value, onChange, min, max, step = 1 }: { value: number; onChange:
   );
 }
 
+const SWATCHES = ["#1d1a3a", "#ffffff", "#5b3df5", "#ffb547", "#ff7a2e", "#d22f4f", "#ff8fb1", "#18a689", "#2fd4cf", "#4f8bff"];
+
 function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return <input type="color" className="h-9 w-full cursor-pointer rounded-lg border border-line bg-paper" value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <input type="color" className="h-9 w-full cursor-pointer rounded-lg border border-line bg-paper" value={value} onChange={(e) => onChange(e.target.value)} />
+      <div className="flex flex-wrap gap-1">
+        {SWATCHES.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            aria-label={`Colore ${c}`}
+            aria-pressed={value.toLowerCase() === c}
+            className="size-4 rounded-full border border-line aria-pressed:ring-2 aria-pressed:ring-violet"
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "Sfumatura": a second colour and an angle, shown when enabled. */
+function GradientControls({ color2, angle, base, onChange }: { color2?: string; angle?: number; base: string; onChange: (p: { color2?: string; angle?: number }) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" className="accent-violet" checked={Boolean(color2)} onChange={(e) => onChange(e.target.checked ? { color2: base === "#ffffff" ? "#5b3df5" : "#ffffff", angle: angle ?? 135 } : { color2: undefined })} />
+        Sfumatura
+      </label>
+      {color2 && (
+        <div className="grid grid-cols-2 gap-2">
+          <Row label="Secondo colore">
+            <ColorInput value={color2} onChange={(c) => onChange({ color2: c })} />
+          </Row>
+          <Row label="Direzione (°)">
+            <Num value={angle ?? 135} min={0} max={360} step={15} onChange={(a) => onChange({ angle: a })} />
+          </Row>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FontSelect({ value, onChange }: { value: FontId; onChange: (v: FontId) => void }) {
+  return (
+    <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value as FontId)} style={{ fontFamily: FONT_FAMILY[value] }}>
+      {FONTS.map((f) => (
+        <option key={f} value={f} style={{ fontFamily: FONT_FAMILY[f] }}>
+          {FONT_LABELS[f]}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -82,6 +145,7 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
           <Row label="Sfondo">
             <ColorInput value={page.background} onChange={(background) => dispatch({ type: "update-page", patch: { background } })} />
           </Row>
+          <GradientControls color2={page.color2} angle={page.angle} base={page.background} onChange={(patch) => dispatch({ type: "update-page", patch })} />
           <Row label="Transizione d'ingresso">
             <select className={inputCls} value={page.transition} onChange={(e) => dispatch({ type: "update-page", patch: { transition: e.target.value as Page["transition"] } })}>
               {TRANSITIONS.map((t) => (
@@ -91,6 +155,15 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
               ))}
             </select>
           </Row>
+          <button onClick={() => dispatch({ type: "transition-all", transition: page.transition })} className={chip}>
+            Usa questa transizione per tutte le pagine
+          </button>
+        </Section>
+        <Section title="Presentazione">
+          <Row label="Avanza da sola dopo (secondi, 0 = mai)">
+            <Num value={doc.settings?.autoAdvance ?? 0} min={0} max={300} onChange={(autoAdvance) => dispatch({ type: "settings", autoAdvance })} />
+          </Row>
+          <p className="text-xs text-ink-soft">Utile per chioschi, vetrine e presentazioni che scorrono da sole.</p>
         </Section>
         <p className="px-4 py-4 text-sm text-ink-soft">Seleziona un elemento sulla pagina per modificarne aspetto, animazioni e interazioni.</p>
       </div>
@@ -115,10 +188,7 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
                 <ColorInput value={el.color} onChange={(color) => set({ color })} />
               </Row>
               <Row label="Carattere">
-                <select className={inputCls} value={el.font} onChange={(e) => set({ font: e.target.value as "sans" | "display" })}>
-                  <option value="display">Titolo</option>
-                  <option value="sans">Testo</option>
-                </select>
+                <FontSelect value={el.font} onChange={(font) => set({ font })} />
               </Row>
               <Row label="Spessore">
                 <select className={inputCls} value={el.weight} onChange={(e) => set({ weight: e.target.value as "400" | "600" | "800" })}>
@@ -128,6 +198,7 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
                 </select>
               </Row>
             </div>
+            <GradientControls color2={el.color2} angle={el.angle} base={el.color} onChange={(p) => set(p)} />
             <Row label="Allineamento">
               <select className={inputCls} value={el.align} onChange={(e) => set({ align: e.target.value as "left" | "center" | "right" })}>
                 <option value="left">Sinistra</option>
@@ -135,6 +206,22 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
                 <option value="right">Destra</option>
               </select>
             </Row>
+            <div className="flex gap-1.5">
+              <button aria-pressed={Boolean(el.italic)} onClick={() => set({ italic: !el.italic })} className={`${chip} italic`}>
+                Corsivo
+              </button>
+              <button aria-pressed={Boolean(el.underline)} onClick={() => set({ underline: !el.underline })} className={`${chip} underline`}>
+                Sottolineato
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Row label="Interlinea">
+                <Num value={el.lineHeight ?? 1.15} min={0.8} max={3} step={0.05} onChange={(lineHeight) => set({ lineHeight })} />
+              </Row>
+              <Row label="Spaziatura">
+                <Num value={el.letterSpacing ?? 0} min={-10} max={50} step={0.5} onChange={(letterSpacing) => set({ letterSpacing })} />
+              </Row>
+            </div>
           </>
         )}
         {el.type === "shape" && (
@@ -153,12 +240,21 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
                 <Num value={el.radius} min={0} max={800} onChange={(radius) => set({ radius })} />
               </Row>
             )}
+            <div className="col-span-2">
+              <GradientControls color2={el.color2} angle={el.angle} base={el.fill} onChange={(p) => set(p)} />
+            </div>
+            <Row label="Bordo">
+              <ColorInput value={el.stroke ?? "#1d1a3a"} onChange={(stroke) => set({ stroke, strokeWidth: el.strokeWidth || 4 })} />
+            </Row>
+            <Row label="Spessore bordo">
+              <Num value={el.strokeWidth ?? 0} min={0} max={60} onChange={(strokeWidth) => set({ strokeWidth, stroke: el.stroke ?? "#1d1a3a" })} />
+            </Row>
           </div>
         )}
         {el.type === "image" && (
           <>
-            <Row label="Indirizzo immagine (https)">
-              <input className={inputCls} defaultValue={el.src} key={el.id} maxLength={2048} onBlur={(e) => /^https:\/\//.test(e.target.value) && set({ src: e.target.value })} />
+            <Row label="Indirizzo immagine (https) o carica dal pulsante Immagine">
+              <input className={inputCls} defaultValue={el.src.startsWith("/a/") ? "" : el.src} placeholder={el.src.startsWith("/a/") ? "Immagine caricata" : ""} key={el.src} maxLength={2048} onBlur={(e) => /^https:\/\//.test(e.target.value) && set({ src: e.target.value })} />
             </Row>
             <Row label="Testo alternativo (per chi usa lettori di schermo)">
               <input className={inputCls} value={el.alt} maxLength={300} onChange={(e) => set({ alt: e.target.value })} />
@@ -173,6 +269,12 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
               <Row label="Angoli">
                 <Num value={el.radius} min={0} max={800} onChange={(radius) => set({ radius })} />
               </Row>
+              <Row label="Cornice">
+                <ColorInput value={el.stroke ?? "#ffffff"} onChange={(stroke) => set({ stroke, strokeWidth: el.strokeWidth || 8 })} />
+              </Row>
+              <Row label="Spessore cornice">
+                <Num value={el.strokeWidth ?? 0} min={0} max={60} onChange={(strokeWidth) => set({ strokeWidth, stroke: el.stroke ?? "#ffffff" })} />
+              </Row>
             </div>
           </>
         )}
@@ -181,6 +283,10 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
             <Row label="Etichetta">
               <input className={inputCls} value={el.label} maxLength={80} onChange={(e) => set({ label: e.target.value })} />
             </Row>
+            <Row label="Carattere">
+              <FontSelect value={el.font ?? "sans"} onChange={(font) => set({ font })} />
+            </Row>
+            <GradientControls color2={el.color2} angle={el.angle} base={el.fill} onChange={(p) => set(p)} />
             <div className="grid grid-cols-3 gap-2">
               <Row label="Sfondo">
                 <ColorInput value={el.fill} onChange={(fill) => set({ fill })} />
@@ -227,6 +333,13 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
             <Num value={el.opacity * 100} min={0} max={100} onChange={(v) => set({ opacity: v / 100 })} />
           </Row>
         </div>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Allinea alla pagina">
+          {ALIGN.map((a) => (
+            <button key={a.to} onClick={() => dispatch({ type: "align", id: el.id, to: a.to })} title={a.label} aria-label={a.label} className="grid size-8 place-items-center rounded-lg border border-line text-base hover:border-violet">
+              {a.icon}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-1.5 text-xs">
           {(
             [
@@ -244,6 +357,10 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-violet" checked={el.locked} onChange={(e) => set({ locked: e.target.checked })} />
           Blocca posizione
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-violet" checked={Boolean(el.shadow)} onChange={(e) => set({ shadow: e.target.checked })} />
+          Ombra
         </label>
       </Section>
 

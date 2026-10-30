@@ -4,9 +4,8 @@ import { requireUser } from "@/lib/auth/session";
 import { listPresentations } from "@/lib/presentations";
 import { documentSchema } from "@/lib/editor/schema";
 import { SlideThumb } from "@/components/slide/element-view";
-import { Button } from "@/components/ui";
+import { NewPresentation } from "./new-presentation";
 import {
-  createPresentationAction,
   deleteForeverAction,
   duplicatePresentationAction,
   restorePresentationAction,
@@ -33,11 +32,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             {trash ? "Le presentazioni nel cestino non sono visibili a nessuno." : "Riprendi da dove avevi lasciato o crea qualcosa di nuovo."}
           </p>
         </div>
-        {!trash && (
-          <form action={createPresentationAction}>
-            <Button type="submit">Nuova presentazione</Button>
-          </form>
-        )}
+        {!trash && <NewPresentation />}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -69,7 +64,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <div className="rounded-3xl border border-dashed border-line px-6 py-16 text-center">
           <p className="font-display text-xl font-semibold">{trash ? "Il cestino è vuoto" : q ? "Nessun risultato" : "Ancora nessuna presentazione"}</p>
           {!trash && !q && (
-            <p className="mt-2 text-ink-soft">Crea la prima: parti da una copertina e aggiungi hotspot, pop-up e animazioni.</p>
+            <p className="mt-2 text-ink-soft">Crea la prima: scegli un modello e aggiungi hotspot, finestre e animazioni.</p>
           )}
         </div>
       ) : (

@@ -34,12 +34,15 @@ export function countAll(ownerId: string) {
   return db.presentation.count({ where: { ownerId } });
 }
 
-/** Bytes used by the owner's documents, excluding `exceptId` (the one being replaced). */
+/** Bytes used by the owner's documents and uploaded images, excluding presentation `exceptId` (the one being replaced). */
 export async function storageUsed(ownerId: string, exceptId?: string) {
-  const rows = await db.$queryRaw<{ bytes: bigint | null }[]>`
-    SELECT SUM(pg_column_size("content"))::bigint AS bytes FROM "Presentation"
-    WHERE "ownerId" = ${ownerId} AND "id" <> ${exceptId ?? ""}`;
-  return Number(rows[0]?.bytes ?? 0);
+  const [docs, images] = await Promise.all([
+    db.$queryRaw<{ bytes: bigint | null }[]>`
+      SELECT SUM(pg_column_size("content"))::bigint AS bytes FROM "Presentation"
+      WHERE "ownerId" = ${ownerId} AND "id" <> ${exceptId ?? ""}`,
+    db.asset.aggregate({ where: { ownerId }, _sum: { size: true } }),
+  ]);
+  return Number(docs[0]?.bytes ?? 0) + (images._sum.size ?? 0);
 }
 
 export function docBytes(input: unknown) {

@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { FormMessage } from "@/components/ui";
+import { safeNext } from "@/lib/validation";
 
 export const metadata: Metadata = { title: "Accedi" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/accedi">) {
   const params = await searchParams;
+  const next = safeNext(params.dopo);
   const notice =
     params.verificata === "1"
       ? "Email confermata. Ora puoi accedere."
@@ -23,10 +25,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/accedi">) 
           <FormMessage tone="ok">{notice}</FormMessage>
         </div>
       )}
-      <LoginForm />
+      <LoginForm next={next} />
       <p className="mt-6 text-center text-sm text-ink-soft">
         Non hai un account?{" "}
-        <Link href="/registrati" className="font-semibold text-violet">
+        <Link href={next ? `/registrati?dopo=${encodeURIComponent(next)}` : "/registrati"} className="font-semibold text-violet">
           Registrati gratis
         </Link>
       </p>

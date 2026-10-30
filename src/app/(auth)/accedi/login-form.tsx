@@ -6,10 +6,11 @@ import { loginAction } from "../actions";
 import { Button, Field, FormMessage } from "@/components/ui";
 import type { FormState } from "@/lib/validation";
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(loginAction, {});
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
+      {next && <input type="hidden" name="dopo" value={next} />}
       <Field label="Email" name="email" type="email" autoComplete="email" defaultValue={state.values?.email} error={state.errors?.email} required />
       <Field label="Password" name="password" type="password" autoComplete="current-password" error={state.errors?.password} required />
       <Link href="/password-dimenticata" className="-mt-1 self-end text-sm font-medium text-violet">

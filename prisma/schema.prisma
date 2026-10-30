@@ -50,6 +50,21 @@ model User {
   emailTokens   EmailToken[]
   presentations Presentation[]
   auditLogs     AuditLog[]
+  assets        Asset[]
+}
+
+// Uploaded images. Served from /a/<id>; the id is 128 random bits, so only
+// people who see a presentation using it can find it.
+model Asset {
+  id        String   @id
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
 }
 
 model Session {

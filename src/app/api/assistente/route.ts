@@ -1,0 +1,92 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request";
+import { offlineAnswer, pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
+
+const MODEL = "claude-opus-5-5";
+
+const bodySchema = z.object({
+  // Where the visitor is: a plain site path, never a full URL.
+  page: z.string().max(80).regex(/^\/[\w\-/#]*$/).default("/"),
+  messages: z
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1200) }))
+    .min(1)
+    .max(16)
+    .refine((m) => m[0].role === "user" && m[m.length - 1].role === "user", "La conversazione deve iniziare e finire con l'utente."),
+});
+
+const error = (message: string, status: number) => NextResponse.json({ error: message }, { status });
+
+/** Streams text to the client, one chunk at a time. */
+function textStream(produce: (write: (text: string) => void) => Promise<void>) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        await produce((text) => controller.enqueue(encoder.encode(text)));
+      } catch (err) {
+        console.error("assistant failed", err instanceof Error ? err.message : err);
+        controller.enqueue(encoder.encode("\n\nLa navicella ha perso il segnale per un attimo. Riprova tra poco."));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+  });
+}
+
+let client: Anthropic | null = null;
+
+/**
+ * Zib, the site assistant. Public (visitors can ask before signing up), so it
+ * is rate limited per IP and accepts only short, plain-text conversations.
+ * The CSRF Origin check runs in src/proxy.ts before this handler.
+ */
+export async function POST(request: Request) {
+  const ip = await clientIp();
+  if (!(await rateLimit(`assistant:${ip}`, 30, 60 * 60))) return error("Hai fatto molte domande: riprova tra un po'.", 429);
+  if (Number(request.headers.get("content-length") ?? 0) > 32 * 1024) return error("Messaggio troppo lungo.", 413);
+
+  let parsed;
+  try {
+    parsed = bodySchema.safeParse(await request.json());
+  } catch {
+    return error("Richiesta non valida.", 400);
+  }
+  if (!parsed.success) return error("Richiesta non valida.", 400);
+  const { messages, page } = parsed.data;
+
+  // Without a key the assistant answers from its on-board guide.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const answer = offlineAnswer(messages[messages.length - 1].content);
+    return textStream(async (write) => write(answer));
+  }
+
+  client ??= new Anthropic();
+  const anthropic = client;
+  return textStream(async (write) => {
+    const stream = anthropic.beta.messages.stream({
+      model: MODEL,
+      max_tokens: 2048,
+      // Quick, conversational answers: low effort keeps latency down.
+      output_config: { effort: "low" },
+      // If a safety classifier declines, Anthropic re-runs the request on its recommended fallback model.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      // The stable prompt is cached; the page context comes after the breakpoint.
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+        { type: "text", text: pageContext(page) },
+      ],
+      messages,
+    });
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") write(event.delta.text);
+    }
+    const final = await stream.finalMessage();
+    if (final.stop_reason === "refusal") write("Su questo non posso aiutarti, ma chiedimi pure qualsiasi cosa su Lumora!");
+  });
+}

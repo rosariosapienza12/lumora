@@ -3,7 +3,8 @@
 import { useEffect, useReducer, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import type { ElementType, PresentationDoc } from "@/lib/editor/schema";
+import QRCode from "qrcode";
+import type { Element, ElementType, PresentationDoc } from "@/lib/editor/schema";
 import { SlideThumb } from "@/components/slide/element-view";
 import { Player } from "@/components/player/player";
 import { Logo } from "@/components/ui";
@@ -30,14 +31,39 @@ export function Editor(props: {
   initialHasPassword: boolean;
   emailVerified: boolean;
   appUrl: string;
+  /** Tip shown when arriving from a homepage planet shortcut. */
+  hint?: string | null;
 }) {
   const [state, dispatch] = useReducer(reducer, props.initialDoc, initState);
+  const [hint, setHint] = useState(props.hint ?? null);
   const [title, setTitle] = useState(props.initialTitle);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [sharing, setSharing] = useState(false);
   const firstRender = useRef(true);
+  const clipboard = useRef<Element | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+
+  const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) return setUploadMsg("L'immagine supera i 4 MB.");
+    setUploadMsg("Caricamento dell'immagine…");
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const res = await fetch("/api/assets", { method: "POST", body });
+      const data = (await res.json()) as { src?: string; error?: string };
+      if (!res.ok || !data.src) return setUploadMsg(data.error ?? "Caricamento non riuscito.");
+      dispatch({ type: "add-element", kind: "image", src: data.src, alt: file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 300) });
+      setUploadMsg(null);
+    } catch {
+      setUploadMsg("Caricamento non riuscito: controlla la connessione.");
+    }
+  };
   const page = currentPage(state);
   const selected = page.elements.find((e) => e.id === state.selectedId) ?? null;
 
@@ -86,6 +112,11 @@ export function Editor(props: {
       } else if (state.selectedId && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
         dispatch({ type: "delete-element", id: state.selectedId });
+      } else if (selected && mod && e.key.toLowerCase() === "c") {
+        clipboard.current = structuredClone(selected);
+      } else if (clipboard.current && mod && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        dispatch({ type: "paste", element: clipboard.current });
       } else if (state.selectedId && mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         dispatch({ type: "duplicate-element", id: state.selectedId });
@@ -133,8 +164,17 @@ export function Editor(props: {
             ↷
           </button>
         </div>
+        <a
+          href={`/editor/${props.id}/stampa`}
+          target="_blank"
+          rel="noopener"
+          className="hidden rounded-full px-3 py-2 text-sm font-semibold hover:bg-mist lg:inline"
+          title="Apre una pagina pronta da salvare in PDF o stampare"
+        >
+          Esporta PDF
+        </a>
         <button onClick={() => setPreviewing(true)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-violet">
-          Anteprima
+          Presenta
         </button>
         <button onClick={() => setSharing(true)} className="rounded-full bg-violet px-4 py-2 text-sm font-semibold text-white hover:bg-violet-deep">
           Condividi
@@ -185,7 +225,7 @@ export function Editor(props: {
             {ADDABLE.map((a) => (
               <button
                 key={a.kind}
-                onClick={() => dispatch({ type: "add-element", kind: a.kind })}
+                onClick={() => (a.kind === "image" ? fileRef.current?.click() : dispatch({ type: "add-element", kind: a.kind }))}
                 className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper"
               >
                 <span aria-hidden className={a.kind === "hotspot" ? "text-amber" : "text-violet"}>
@@ -195,8 +235,50 @@ export function Editor(props: {
               </button>
             ))}
           </div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" tabIndex={-1} onChange={upload} />
+          <AnimatePresence>
+            {hint && (
+              <motion.div
+                role="note"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden bg-amber/15"
+              >
+                <div className="flex items-start gap-3 px-4 py-2.5 text-sm">
+                  <span aria-hidden className="hotspot mt-0.5 shrink-0 scale-75">
+                    ✦
+                  </span>
+                  <p className="flex-1">{hint}</p>
+                  <button onClick={() => setHint(null)} className="rounded-full px-2.5 py-1 text-xs font-semibold hover:bg-amber/20">
+                    Ho capito
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {uploadMsg && (
+            <p role="status" className="bg-paper px-4 py-1.5 text-center text-sm text-ink-soft">
+              {uploadMsg}
+            </p>
+          )}
           <div className="min-h-0 flex-1 p-6">
             <Canvas page={page} selectedId={state.selectedId} dispatch={dispatch} />
+          </div>
+          <div className="border-t border-line bg-paper px-4 py-2">
+            <label htmlFor="notes" className="text-xs font-medium text-ink-soft">
+              Note del relatore per questa pagina (le vedi solo tu, in modalità presentatore)
+            </label>
+            <textarea
+              id="notes"
+              key={page.id}
+              defaultValue={page.notes ?? ""}
+              maxLength={5000}
+              rows={2}
+              placeholder="Cosa vuoi dire mentre mostri questa pagina?"
+              onBlur={(e) => e.target.value !== (page.notes ?? "") && dispatch({ type: "update-page", patch: { notes: e.target.value } })}
+              className="mt-1 w-full resize-y rounded-lg border border-line bg-mist px-3 py-2 text-sm outline-none focus:border-violet"
+            />
           </div>
         </section>
 
@@ -209,7 +291,7 @@ export function Editor(props: {
       <AnimatePresence>
         {previewing && (
           <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Player doc={state.doc} startIndex={pageIndex} onClose={() => setPreviewing(false)} />
+            <Player doc={state.doc} startIndex={pageIndex} onClose={() => setPreviewing(false)} presenter />
           </motion.div>
         )}
       </AnimatePresence>
@@ -246,6 +328,15 @@ function ShareDialog(props: {
   const [copied, setCopied] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const url = slug ? `${props.appUrl}/p/${slug}` : null;
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    let alive = true;
+    QRCode.toDataURL(url, { margin: 1, width: 240 }).then((d) => alive && setQr(d));
+    return () => {
+      alive = false;
+    };
+  }, [url]);
   const embed = slug
     ? `<iframe src="${props.appUrl}/embed/${slug}" width="960" height="580" style="border:0" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>`
     : null;
@@ -338,6 +429,13 @@ function ShareDialog(props: {
                     {copied === "link" ? "Copiato" : "Copia link"}
                   </button>
                 </div>
+                {qr && (
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- generated data URL */}
+                    <img src={qr} alt="Codice QR del link" width={96} height={96} className="rounded-lg bg-white p-1" />
+                    <p className="text-ink-soft">Mostralo in aula o in riunione: chi lo inquadra apre subito la presentazione.</p>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate">{embed}</code>
                   <button onClick={() => copy(embed, "embed")} className="rounded-full bg-paper px-3 py-1 font-medium">
