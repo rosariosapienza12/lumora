@@ -68,7 +68,7 @@ const TOPICS: { words: string[]; kind: Kind; theme: ThemeId }[] = [
   { words: ["startup", "azienda", "aziendale", "prodotto", "vendit", "marketing", "clienti", "investitor", "business", "pitch", "budget", "fatturato", "riunione"], kind: "pitch", theme: "aziendale" },
   { words: ["sistema solare", "spazio", "pianet", "stelle", "universo", "astronom", "galassi", "luna"], kind: "lezione", theme: "notte" },
   { words: ["mare", "oceano", "acqua", "pesci", "balen"], kind: "lezione", theme: "oceano" },
-  { words: ["natura", "ambiente", "animali", "piante", "clima", "ecolog", "foresta", "bosco", "riciclo", "sostenibil"], kind: "lezione", theme: "natura" },
+  { words: ["natura", "ambiente", "animali", "piante", "fotosintes", "clima", "ecolog", "foresta", "bosco", "riciclo", "sostenibil"], kind: "lezione", theme: "natura" },
   { words: ["tecnologia", "informatica", "intelligenza artificiale", "programmazione", "coding", "robot", "videogioc", "gaming", "app ", "computer", "cybersecurity", "sicurezza informatica"], kind: "lezione", theme: "neon" },
   { words: ["arte", "musica", "design", "moda", "pittura", "cinema", "fotografia", "creativ"], kind: "lezione", theme: "tramonto" },
   { words: ["storia", "impero", "guerra", "medioevo", "antica", "antico", "rinascimento", "romani", "greci", "egizi"], kind: "lezione", theme: "retro" },
@@ -77,8 +77,10 @@ const TOPICS: { words: string[]; kind: Kind; theme: ThemeId }[] = [
 
 /** Picks the kind and theme for a topic. */
 export function classifyTopic(topic: string): { kind: Kind; theme: ThemeId } {
-  const t = ` ${normalize(topic)} `;
-  return TOPICS.find((x) => x.words.some((w) => t.includes(w))) ?? { kind: "lezione", theme: "notte" };
+  // Words are matched from their start ("pianet" finds "pianeti"), never inside another word ("tesi" is not in "fotosintesi").
+  const t = ` ${normalize(topic).replace(/[^a-z0-9]+/g, " ")} `;
+  // A trailing space in a word ("test ", "app ") means the whole word only.
+  return TOPICS.find((x) => x.words.some((w) => t.includes(` ${w}`))) ?? { kind: "lezione", theme: "notte" };
 }
 
 /** An outline for a topic: the right kind of presentation, a fitting theme and headings about the topic. */

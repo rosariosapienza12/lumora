@@ -40,6 +40,13 @@ describe("Zib's brain", () => {
     expect(deckIn(ask("prepara una presentazione sui videogiochi in stile Retrò"))?.theme).toBe("retro");
   });
 
+  it("matches whole words: fotosintesi is a science lesson, not a thesis", () => {
+    const deck = deckIn(ask("fammi una presentazione sulla fotosintesi"));
+    expect(deck?.theme).toBe("natura");
+    expect(deck?.pages.some((p) => p.layout === "domanda")).toBe(true);
+    expect(deckIn(ask("prepara la presentazione della mia tesi sulla ricerca"))?.theme).toBe("accademico");
+  });
+
   it("changes the theme of the outline it just proposed", () => {
     const first = ask("fammi una presentazione sulla fotosintesi");
     const second = ask("cambia tema in Neon", [

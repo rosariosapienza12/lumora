@@ -249,12 +249,12 @@ function rank(text: string) {
 const CREATE = /\b(crea|creami|fammi|fai|prepara|preparami|genera|generami|costruisci|realizza|organizza|progetta|voglio|vorrei|mi serve|mi servirebbe|aiutami|serve|idee?|idea|scaletta|proposta|bozza)\b/;
 const DECK_WORDS = /\b(presentazion\w*|slide|lezion\w*|pitch|quiz|scalett\w*|relazion\w*|storia|portfolio|workshop|corso|idee?|tesi|lavoro)\b/;
 const KIND_WORDS: [RegExp, Parameters<typeof planDeck>[1]][] = [
-  [/\bstoria a bivi|racconto|avventura|fiaba|favola\b/, { kind: "storia" }],
-  [/\bquiz|verifica\b/, { kind: "quiz" }],
-  [/\bpitch|startup\b/, { kind: "pitch" }],
-  [/\brelazione|tesi|ricerca\b/, { kind: "relazione" }],
+  [/\b(?:storia a bivi|racconto|avventura|fiaba|favola)\b/, { kind: "storia" }],
+  [/\b(?:quiz|verifica)\b/, { kind: "quiz" }],
+  [/\b(?:pitch|startup)\b/, { kind: "pitch" }],
+  [/\b(?:relazione|tesi|ricerca)\b/, { kind: "relazione" }],
   [/\bportfolio\b/, { kind: "portfolio" }],
-  [/\bworkshop|corso|formazione\b/, { kind: "workshop" }],
+  [/\b(?:workshop|corso|formazione)\b/, { kind: "workshop" }],
   [/\blezione\b/, { kind: "lezione" }],
 ];
 const KIND_NAMES = { lezione: "una lezione", pitch: "un pitch", relazione: "una relazione", quiz: "un quiz", storia: "una storia a bivi", portfolio: "un portfolio", workshop: "un workshop" } as const;
