@@ -122,7 +122,17 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
       ref={ref}
       aria-hidden
       className={className}
-      style={{ width: box, height: box, marginLeft: -(box - size) / 2, marginTop: -(box - size) / 2, marginRight: -(box - size) / 2, marginBottom: -(box - size) / 2 }}
+      // Centred on the planet's box. The vertical shift uses relative positioning, not a negative
+      // top margin: that margin would collapse into the parent and push the sphere off-centre.
+      style={{
+        position: "relative",
+        top: -(box - size) / 2,
+        width: box,
+        height: box,
+        marginLeft: -(box - size) / 2,
+        marginRight: -(box - size) / 2,
+        marginBottom: -(box - size),
+      }}
     />
   );
 }
