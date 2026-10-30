@@ -12,7 +12,7 @@
 - **Animazioni e transizioni**: 7 effetti di ingresso, 4 continui, dissolvenza, scorrimento, zoom e rotazione 3D tra le pagine. Rispettano `prefers-reduced-motion`.
 - **Presenta e condividi**: modalità presentatore con note e cronometro, avanzamento automatico, esportazione in PDF, link pubblico con password facoltativa, QR code e codice per incorporare.
 - **Homepage come prodotto**: un sistema solare interattivo in cui ogni pianeta è una funzione. I pianeti sono renderizzati pixel per pixel su canvas da texture procedurali generate in Web Worker; i giganti gassosi sono modellati su Giove e Saturno (fasce irregolari, vortici, grande tempesta, oscuramento al bordo).
-- **Zib, l'assistente**: un alieno nella sua navicella che risponde alle domande sul sito in streaming tramite Claude, propone scalette di presentazioni e pulsanti che portano alla pagina giusta. Senza chiave API risponde con una guida integrata.
+- **Zib, l'assistente**: un alieno nella sua navicella che risponde in streaming tramite Claude e, su richiesta ("fammi una presentazione sulla fotosintesi"), sceglie modello e tema, propone la scaletta e crea la presentazione dopo un'anteprima. Senza chiave API usa un motore integrato che capisce domande senza accenti e con refusi, risponde a più argomenti insieme, segue il filo della conversazione e suggerisce le domande successive.
 
 | Viaggio tra le funzioni | Assistente Zib |
 | --- | --- |
