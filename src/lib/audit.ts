@@ -4,6 +4,7 @@ import { clientIp } from "./request";
 
 export type AuditAction =
   | "signup"
+  | "password.changed"
   | "login.success"
   | "login.failure"
   | "login.locked"

@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
-import { verifyPassword } from "@/lib/auth/password";
+import { hashPassword, isPasswordBreached, verifyPassword } from "@/lib/auth/password";
 import { createSession, destroySession, requireUser, revokeAllSessions } from "@/lib/auth/session";
 import { consumeTotp, createTotpEnrollment, generateRecoveryCodes } from "@/lib/auth/totp";
-import { totpCodeSchema, type FormState } from "@/lib/validation";
+import { passwordSchema, totpCodeSchema, type FormState } from "@/lib/validation";
 
 export type EnrollState = FormState & { qrDataUrl?: string; secret?: string; recoveryCodes?: string[] };
 
@@ -25,6 +25,32 @@ async function rotateSessions(userId: string) {
   await revokeAllSessions(userId);
   await destroySession();
   await createSession(userId);
+}
+
+/**
+ * Changes the password from inside the account: the current password is required (a stolen
+ * session alone is not enough), the new one goes through the same rules as sign-up, and every
+ * other session is signed out.
+ */
+export async function changePasswordAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  if (!(await rateLimit(`password-change:${user.id}`, 5, 15 * 60))) return { message: TOO_MANY };
+
+  const next = formData.get("next");
+  const confirm = formData.get("confirm");
+  const parsed = passwordSchema.safeParse(next);
+  if (!parsed.success) return { errors: { next: parsed.error.issues[0].message } };
+  if (next !== confirm) return { errors: { confirm: "Le password non coincidono" } };
+  if (!(await confirmPassword(user.id, formData.get("current")))) return { errors: { current: "Password attuale non corretta" } };
+  if (await isPasswordBreached(parsed.data)) {
+    return { errors: { next: "Questa password è apparsa in violazioni di dati note. Scegline un'altra." } };
+  }
+
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data), failedLoginCount: 0, lockedUntil: null } });
+  await rotateSessions(user.id);
+  await audit("password.changed", user.id);
+  revalidatePath("/impostazioni");
+  return { ok: true };
 }
 
 export async function startTotpAction(_prev: EnrollState, formData: FormData): Promise<EnrollState> {
@@ -89,6 +115,7 @@ export async function disableTotpAction(_prev: FormState, formData: FormData): P
 
 export async function revokeOtherSessionsAction() {
   const user = await requireUser();
+  if (!(await rateLimit(`sessions-revoke:${user.id}`, 10, 15 * 60))) return;
   await rotateSessions(user.id);
   await audit("sessions.revoked", user.id);
   revalidatePath("/impostazioni");

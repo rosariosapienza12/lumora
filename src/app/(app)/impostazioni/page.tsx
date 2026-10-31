@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { Button } from "@/components/ui";
 import { TwoFactorPanel } from "./two-factor-panel";
+import { PasswordForm } from "./password-form";
 import { revokeOtherSessionsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Sicurezza dell'account" };
@@ -32,6 +33,11 @@ export default async function SettingsPage() {
             Email non ancora confermata: apri il link che ti abbiamo inviato. Serve per pubblicare le presentazioni.
           </p>
         )}
+      </section>
+
+      <section className="rounded-3xl border border-line bg-paper p-6">
+        <h2 className="mb-3 font-display text-xl font-semibold">Password</h2>
+        <PasswordForm />
       </section>
 
       <section className="rounded-3xl border border-line bg-paper p-6">

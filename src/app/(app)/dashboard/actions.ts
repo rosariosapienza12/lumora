@@ -20,6 +20,9 @@ function parseId(value: FormDataEntryValue | null) {
   return parsed.data;
 }
 
+/** Ceiling on rename, trash, restore and delete, so a script cannot hammer the database. */
+const editAllowed = (userId: string) => rateLimit(`dashboard-edit:${userId}`, 120, 60 * 60);
+
 /** Slot and storage checks shared by create and duplicate. */
 async function canAdd(userId: string, bytes: number) {
   if (!(await rateLimit(`create:${userId}`, 30, 60 * 60))) return false;
@@ -56,6 +59,7 @@ export async function duplicatePresentationAction(formData: FormData) {
 
 export async function renamePresentationAction(formData: FormData) {
   const user = await requireUser();
+  if (!(await editAllowed(user.id))) return;
   const title = titleSchema.safeParse(formData.get("title"));
   if (!title.success) return;
   await db.presentation.updateMany({
@@ -67,6 +71,7 @@ export async function renamePresentationAction(formData: FormData) {
 
 export async function trashPresentationAction(formData: FormData) {
   const user = await requireUser();
+  if (!(await editAllowed(user.id))) return;
   // Moving to trash also takes it offline and invalidates the old link.
   await db.presentation.updateMany({
     where: { id: parseId(formData.get("id")), ownerId: user.id },
@@ -77,6 +82,7 @@ export async function trashPresentationAction(formData: FormData) {
 
 export async function restorePresentationAction(formData: FormData) {
   const user = await requireUser();
+  if (!(await editAllowed(user.id))) return;
   await db.presentation.updateMany({
     where: { id: parseId(formData.get("id")), ownerId: user.id },
     data: { deletedAt: null },
@@ -86,6 +92,7 @@ export async function restorePresentationAction(formData: FormData) {
 
 export async function deleteForeverAction(formData: FormData) {
   const user = await requireUser();
+  if (!(await editAllowed(user.id))) return;
   // Only items already in the trash can be removed permanently.
   await db.presentation.deleteMany({
     where: { id: parseId(formData.get("id")), ownerId: user.id, deletedAt: { not: null } },

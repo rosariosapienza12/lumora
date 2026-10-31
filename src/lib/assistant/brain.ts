@@ -42,7 +42,7 @@ const INTENTS: Intent[] = [
   {
     id: "registrazione",
     keys: ["registr", "iscriv", "creare un account", "nuovo account", "account"],
-    answer: "Vai su Registrati, inserisci nome, email e una password (almeno 10 caratteri, e controllo che non sia comparsa in violazioni di dati), poi conferma l'email dal link che ricevi. Creare un account è gratuito.",
+    answer: "Vai su Registrati, inserisci nome, email e una password (almeno 12 caratteri, e controllo che non sia comparsa in violazioni di dati), poi conferma l'email dal link che ricevi. Creare un account è gratuito.",
     more: "Se l'email non arriva controlla lo spam e attendi qualche minuto. Dopo la conferma entri direttamente nella dashboard.",
     action: "[[/registrati|Crea un account]]",
     next: ["Come attivo la verifica in due passaggi?", "Quanto costa?"],

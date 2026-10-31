@@ -74,6 +74,7 @@ export async function publishAction(id: unknown, password: unknown): Promise<Pub
 
 export async function unpublishAction(id: unknown): Promise<PublishResult> {
   const user = await requireUser();
+  if (!(await rateLimit(`publish:${user.id}`, 30, 60 * 60))) return { ok: false, error: "Troppe operazioni, riprova più tardi." };
   const pid = idSchema.safeParse(id);
   if (!pid.success) return { ok: false, error: "Presentazione non trovata" };
   // Rotating the slug means old links stop working even if re-published later.

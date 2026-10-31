@@ -92,6 +92,8 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
 // Confirmation is a POST behind a button, so link scanners in mail clients
 // that prefetch URLs cannot consume the token.
 export async function verifyEmailAction(formData: FormData) {
+  // Tokens are 256-bit and single use; the limit only stops a flood of requests.
+  if (!(await rateLimit(`verify:ip:${await clientIp()}`, 20, 15 * 60))) redirect("/verifica-email?esito=non-valido");
   const userId = await consumeEmailToken(str(formData, "token"), "VERIFY_EMAIL");
   if (!userId) redirect("/verifica-email?esito=non-valido");
   await db.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date() } });
