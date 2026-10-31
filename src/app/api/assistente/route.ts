@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { NextResponse } from "next/server";
+import { env } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
@@ -70,13 +71,13 @@ export async function POST(request: Request) {
 
   // Without a key, or once the site-wide daily budget of AI answers is used up (so many IPs together
   // cannot run up the bill), the assistant answers with its free on-board brain.
-  const aiAllowed = Boolean(process.env.ANTHROPIC_API_KEY) && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
+  const aiAllowed = Boolean(env.ANTHROPIC_API_KEY) && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
   if (!aiAllowed) {
     const answer = brainAnswer(messages);
     return textStream(async (write) => write(answer));
   }
 
-  client ??= new Anthropic();
+  client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const anthropic = client;
   return textStream(async (write) => {
     const stream = anthropic.beta.messages.stream({
