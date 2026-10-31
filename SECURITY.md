@@ -20,4 +20,5 @@ Oltre ai test automatici (CodeQL, `npm audit`, lint, tipi e test unitari a ogni 
 
 - Servire il sito solo in HTTPS (l'intestazione HSTS è attiva in produzione).
 - Generare `ENCRYPTION_KEY` casuale e conservarla in un gestore di segreti, mai nel repository.
+- La chiave `ANTHROPIC_API_KEY` vive solo nelle variabili d'ambiente del server: non è nel repository, non è nel codice inviato al browser (verificato compilando con una chiave finta e cercandola nei file pubblici) e non compare mai nelle risposte o nei log. Contro l'abuso dei costi l'assistente ha un limite per indirizzo (30 domande l'ora) e un tetto giornaliero di risposte AI per tutto il sito, oltre il quale risponde con il motore integrato gratuito. Consigliato: una chiave dedicata con limite di spesa nella Console Anthropic.
 - Impostare `TRUSTED_PROXY_HOPS` al numero di reverse proxy davanti all'app: solo allora vengono considerati `X-Forwarded-For` e `X-Forwarded-Host`.

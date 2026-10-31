@@ -7,6 +7,8 @@ import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
 import { brainAnswer } from "@/lib/assistant/brain";
 
 const MODEL = "claude-opus-5-5";
+/** AI answers per day for the whole site; beyond it Zib keeps working offline. */
+const AI_DAILY_BUDGET = 500;
 
 const bodySchema = z.object({
   // Where the visitor is: a plain site path, never a full URL.
@@ -66,8 +68,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return error("Richiesta non valida.", 400);
   const { messages, page } = parsed.data;
 
-  // Without a key the assistant answers with its on-board brain.
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // Without a key, or once the site-wide daily budget of AI answers is used up (so many IPs together
+  // cannot run up the bill), the assistant answers with its free on-board brain.
+  const aiAllowed = Boolean(process.env.ANTHROPIC_API_KEY) && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
+  if (!aiAllowed) {
     const answer = brainAnswer(messages);
     return textStream(async (write) => write(answer));
   }
