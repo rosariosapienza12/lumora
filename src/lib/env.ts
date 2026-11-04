@@ -22,6 +22,8 @@ export const envSchema = z
     RESEND_API_KEY: optional(z.string().regex(/^re_[A-Za-z0-9_]{10,}$/, "RESEND_API_KEY is not a valid Resend key")),
     // Sender, e.g. "Lumora <noreply@yourdomain.com>" (the domain must be verified on Resend).
     MAIL_FROM: optional(z.string().min(3).max(200)),
+    // Shown on the privacy page as the contact for data-protection requests.
+    CONTACT_EMAIL: optional(z.string().email("CONTACT_EMAIL is not a valid email")),
   })
   // In production the site must be served over HTTPS (secure cookies, HSTS).
   .refine((e) => e.NODE_ENV !== "production" || e.APP_URL.startsWith("https://") || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.APP_URL), {

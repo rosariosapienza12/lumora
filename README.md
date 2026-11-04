@@ -8,6 +8,7 @@
 
 ## Features
 
+- **Try it without an account**: "Prova subito" opens the editor on an example presentation for a temporary guest. Guests cannot publish and are deleted, with everything they made, after 24 hours.
 - **Themes and layouts**: 11 coordinated visual themes (colors and fonts), 8 presentation templates and 17 ready-made, animated page layouts; switching theme restyles the whole presentation in one click.
 - **Visual editor** with three columns (pages, canvas and properties panel): 32 fonts, solid colors or gradients, shadows, outlines, layers, alignment, undo/redo and keyboard shortcuts.
 - **Interactivity**: glowing hotspots, pop-up details, content to reveal, buttons that jump to other pages (quizzes and branching stories), external links with confirmation.
@@ -45,6 +46,7 @@ Security was designed around the OWASP Top 10 and checked with a local penetrati
 | Uploads | file type checked from the file's bytes (not the extension), images served with `nosniff` and a `sandbox` CSP |
 | Abuse | rate limits on login, saves, publishing, uploads and the assistant; per-user storage quotas |
 | Content | every document validated with a Zod schema; `https` links only |
+| Privacy | self-service account deletion (password and explicit confirmation, cascade delete of presentations, images and sessions); privacy, terms and cookie pages; only technical cookies |
 
 Details and vulnerability reporting in [SECURITY.md](SECURITY.md).
 
@@ -101,6 +103,7 @@ Optional extras:
   up, sign in, use the editor and try Lumora as a guest, but publishing needs a
   confirmed email.
 - `ANTHROPIC_API_KEY` for Zib's AI answers. Without it, Zib uses its built-in guide.
+- `CONTACT_EMAIL`: the address shown on the privacy and terms pages for data requests.
 
 `TRUSTED_PROXY_HOPS` stays `0` on Vercel, which replaces `X-Forwarded-For` with the
 real client address.

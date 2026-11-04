@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth/session";
 import { Button } from "@/components/ui";
 import { TwoFactorPanel } from "./two-factor-panel";
 import { PasswordForm } from "./password-form";
+import { DeleteAccountForm } from "./delete-account-form";
+import { isGuestEmail } from "@/lib/guest";
 import { revokeOtherSessionsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Sicurezza dell'account" };
@@ -63,6 +65,11 @@ export default async function SettingsPage() {
             Disconnetti tutti gli altri dispositivi
           </Button>
         </form>
+      </section>
+
+      <section className="rounded-3xl border border-danger/30 bg-paper p-6">
+        <h2 className="mb-3 font-display text-xl font-semibold">Elimina account</h2>
+        <DeleteAccountForm guest={isGuestEmail(user.email)} />
       </section>
     </div>
   );

@@ -15,7 +15,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/accedi">) 
       ? "Email confermata. Ora puoi accedere."
       : params.reimpostata === "1"
         ? "Password aggiornata. Accedi con la nuova password."
-        : null;
+        : params.eliminato === "1"
+          ? "Account eliminato: abbiamo cancellato le tue presentazioni e le immagini."
+          : null;
 
   return (
     <>
