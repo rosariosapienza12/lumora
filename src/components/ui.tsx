@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-export function Logo({ className = "" }: { className?: string }) {
+export function Logo({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   return (
-    <Link href="/" className={`inline-flex items-center gap-2 font-display text-xl font-bold tracking-tight ${className}`}>
+    <Link href="/" aria-label="Lumora" className={`inline-flex items-center gap-2 font-display text-xl font-bold tracking-tight ${className}`}>
       <span aria-hidden className="relative grid size-7 place-items-center rounded-full bg-violet">
         <span className="size-2.5 rounded-full bg-amber" />
       </span>
-      Lumora
+      {/* compact: only the mark on phones, where the editor toolbar needs the room. */}
+      <span className={compact ? "hidden sm:inline" : undefined}>Lumora</span>
     </Link>
   );
 }

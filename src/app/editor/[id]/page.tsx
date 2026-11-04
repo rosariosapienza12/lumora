@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getOwnedPresentation } from "@/lib/presentations";
 import { documentSchema, starterDocument } from "@/lib/editor/schema";
 import { env } from "@/lib/env";
+import { isGuestEmail } from "@/lib/guest";
 import { isStarterId, STARTERS } from "@/lib/editor/starters";
 import { Editor } from "./editor";
 
@@ -30,6 +31,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/e
       initialSlug={p.visibility === "LINK" ? p.shareSlug : null}
       initialHasPassword={Boolean(p.sharePasswordHash)}
       emailVerified={Boolean(user.emailVerifiedAt)}
+      guest={isGuestEmail(user.email)}
       appUrl={env.APP_URL}
       hint={hint}
     />

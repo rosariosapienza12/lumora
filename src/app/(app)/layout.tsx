@@ -3,14 +3,17 @@ import { requireUser } from "@/lib/auth/session";
 import { logoutAction } from "../(auth)/actions";
 import { Logo } from "@/components/ui";
 import { Assistant } from "@/components/assistant/assistant";
+import { isGuestEmail } from "@/lib/guest";
+import { GuestBanner } from "@/components/guest-banner";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center gap-6 border-b border-line bg-paper px-5 py-3">
+      {/* On phones the links move to a second row, so the header never overflows the screen. */}
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-paper px-5 py-3">
         <Logo />
-        <nav className="flex gap-1 text-sm font-medium">
+        <nav className="order-last flex w-full gap-1 text-sm font-medium sm:order-none sm:w-auto">
           <Link href="/dashboard" className="rounded-full px-3 py-1.5 hover:bg-mist">
             Le mie presentazioni
           </Link>
@@ -27,6 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </form>
         </div>
       </header>
+      {isGuestEmail(user.email) && <GuestBanner />}
       <main className="flex-1 px-5 py-8">{children}</main>
       <Assistant />
     </div>

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { emailEnabled } from "@/lib/env";
 import { requireUser } from "@/lib/auth/session";
 import { Button } from "@/components/ui";
 import { TwoFactorPanel } from "./two-factor-panel";
 import { PasswordForm } from "./password-form";
+import { DeleteAccountForm } from "./delete-account-form";
+import { isGuestEmail } from "@/lib/guest";
 import { revokeOtherSessionsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Sicurezza dell'account" };
@@ -25,12 +28,14 @@ export default async function SettingsPage() {
 
       <section className="rounded-3xl border border-line bg-paper p-6">
         <h2 className="mb-1 font-display text-xl font-semibold">Profilo</h2>
-        <p className="text-ink-soft">
+        <p className="break-words text-ink-soft [overflow-wrap:anywhere]">
           {user.name} · {user.email}
         </p>
         {!user.emailVerifiedAt && (
           <p className="mt-3 rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">
-            Email non ancora confermata: apri il link che ti abbiamo inviato. Serve per pubblicare le presentazioni.
+            {emailEnabled
+              ? "Email non ancora confermata: apri il link che ti abbiamo inviato. Serve per pubblicare le presentazioni."
+              : "Email non confermata: in questa versione dimostrativa le email sono spente, quindi la pubblicazione non è disponibile."}
           </p>
         )}
       </section>
@@ -60,6 +65,11 @@ export default async function SettingsPage() {
             Disconnetti tutti gli altri dispositivi
           </Button>
         </form>
+      </section>
+
+      <section className="rounded-3xl border border-danger/30 bg-paper p-6">
+        <h2 className="mb-3 font-display text-xl font-semibold">Elimina account</h2>
+        <DeleteAccountForm guest={isGuestEmail(user.email)} />
       </section>
     </div>
   );

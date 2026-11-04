@@ -9,6 +9,7 @@ import { SlideThumb } from "@/components/slide/element-view";
 import { LayoutPicker } from "./layout-picker";
 import { Player } from "@/components/player/player";
 import { Logo } from "@/components/ui";
+import { GuestBanner } from "@/components/guest-banner";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { currentPage, initState, reducer } from "./store";
@@ -31,6 +32,8 @@ export function Editor(props: {
   initialSlug: string | null;
   initialHasPassword: boolean;
   emailVerified: boolean;
+  /** Temporary guest account: show a reminder and explain why sharing is off. */
+  guest?: boolean;
   appUrl: string;
   /** Tip shown when arriving from a homepage planet shortcut. */
   hint?: string | null;
@@ -138,9 +141,12 @@ export function Editor(props: {
   const pageIndex = state.doc.pages.findIndex((p) => p.id === page.id);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <header className="flex items-center gap-3 border-b border-line bg-paper px-4 py-2.5">
-        <Logo className="shrink-0" />
+    // Desktop: three fixed columns filling the screen. Phones and small tablets: one scrolling
+    // column with the slide first, then the page strip, then the properties.
+    <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+      {props.guest && <GuestBanner />}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-paper px-4 py-2.5">
+        <Logo className="shrink-0" compact />
         <Link href="/dashboard" className="hidden rounded-full px-3 py-1.5 text-sm hover:bg-mist md:inline">
           Le mie presentazioni
         </Link>
@@ -152,12 +158,12 @@ export function Editor(props: {
           value={title}
           maxLength={120}
           onChange={(e) => setTitle(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg bg-transparent px-2 py-1 font-display text-lg font-semibold outline-none hover:bg-mist focus:bg-mist"
+          className="order-last w-full min-w-0 rounded-lg bg-transparent px-2 py-1 font-display text-lg font-semibold outline-none hover:bg-mist focus:bg-mist sm:order-none sm:w-auto sm:flex-1"
         />
         <span className="hidden text-sm text-ink-soft sm:inline" aria-live="polite">
           {status === "saved" ? "Salvato" : status === "saving" ? "Salvataggio…" : status === "dirty" ? "Modifiche non salvate" : `Errore: ${error}`}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 sm:ml-0">
           <button onClick={() => dispatch({ type: "undo" })} disabled={!state.past.length} className="rounded-full px-2.5 py-1.5 hover:bg-mist disabled:opacity-30" title="Annulla (Ctrl+Z)" aria-label="Annulla">
             ↶
           </button>
@@ -174,20 +180,20 @@ export function Editor(props: {
         >
           Esporta PDF
         </a>
-        <button onClick={() => setPreviewing(true)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-violet">
+        <button onClick={() => setPreviewing(true)} className="rounded-full border border-line px-3 py-2 text-sm font-semibold hover:border-violet sm:px-4">
           Presenta
         </button>
-        <button onClick={() => setSharing(true)} className="rounded-full bg-violet px-4 py-2 text-sm font-semibold text-white hover:bg-violet-deep">
+        <button onClick={() => setSharing(true)} className="rounded-full bg-violet px-3 py-2 text-sm font-semibold text-white hover:bg-violet-deep sm:px-4">
           Condividi
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        {/* Pages */}
-        <aside className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto border-r border-line bg-paper p-3" aria-label="Pagine">
-          <ol className="flex flex-col gap-3">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+        {/* Pages: a horizontal strip under the slide on phones, a column on the left on desktop */}
+        <aside className="order-2 flex flex-col gap-3 border-b border-line bg-paper p-3 lg:order-none lg:w-48 lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-b-0" aria-label="Pagine">
+          <ol className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
             {state.doc.pages.map((p, i) => (
-              <li key={p.id} className="group relative">
+              <li key={p.id} className="group relative w-32 shrink-0 lg:w-auto">
                 <button
                   onClick={() => dispatch({ type: "goto-page", pageId: p.id })}
                   aria-current={p.id === page.id ? "page" : undefined}
@@ -202,7 +208,7 @@ export function Editor(props: {
             ))}
           </ol>
           <LayoutPicker theme={state.doc.settings?.theme} onPick={(layout) => dispatch({ type: "add-page", layout })} />
-          <div className="mt-auto flex flex-wrap gap-1 text-xs">
+          <div className="flex flex-wrap gap-1 text-xs lg:mt-auto">
             <button onClick={() => dispatch({ type: "move-page", pageId: page.id, dir: -1 })} disabled={pageIndex === 0} className="rounded-full border border-line px-2 py-1 disabled:opacity-30">
               Su
             </button>
@@ -219,7 +225,7 @@ export function Editor(props: {
         </aside>
 
         {/* Canvas */}
-        <section className="flex min-w-0 flex-1 flex-col bg-mist">
+        <section className="order-1 flex min-w-0 flex-col bg-mist lg:order-none lg:flex-1">
           <div className="flex flex-wrap items-center justify-center gap-1.5 border-b border-line bg-paper/60 px-3 py-2" role="toolbar" aria-label="Aggiungi elementi">
             {ADDABLE.map((a) => (
               <button
@@ -261,7 +267,8 @@ export function Editor(props: {
               {uploadMsg}
             </p>
           )}
-          <div className="min-h-0 flex-1 p-6">
+          {/* On phones the page has no fixed height, so the slide area takes a 16:9 box. */}
+          <div className="aspect-video p-3 lg:aspect-auto lg:min-h-0 lg:flex-1 lg:p-6">
             <Canvas page={page} selectedId={state.selectedId} dispatch={dispatch} />
           </div>
           <div className="border-t border-line bg-paper px-4 py-2">
@@ -282,7 +289,7 @@ export function Editor(props: {
         </section>
 
         {/* Inspector */}
-        <aside className="w-72 shrink-0 overflow-y-auto border-l border-line bg-paper" aria-label="Proprietà">
+        <aside className="order-3 border-t border-line bg-paper lg:order-none lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-t-0 lg:border-l" aria-label="Proprietà">
           <Inspector doc={state.doc} page={page} el={selected} dispatch={dispatch} />
         </aside>
       </div>
@@ -301,6 +308,7 @@ export function Editor(props: {
             id={props.id}
             appUrl={props.appUrl}
             emailVerified={props.emailVerified}
+            guest={props.guest}
             initialSlug={props.initialSlug}
             initialHasPassword={props.initialHasPassword}
             onClose={() => setSharing(false)}
@@ -315,6 +323,7 @@ function ShareDialog(props: {
   id: string;
   appUrl: string;
   emailVerified: boolean;
+  guest?: boolean;
   initialSlug: string | null;
   initialHasPassword: boolean;
   onClose: () => void;
@@ -380,7 +389,15 @@ function ShareDialog(props: {
         <h2 id="share-title" className="font-display text-2xl font-bold">
           Condividi
         </h2>
-        {!props.emailVerified ? (
+        {props.guest ? (
+          <p className="rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">
+            Come ospite puoi creare e presentare, ma non pubblicare.{" "}
+            <a href="/registrati" className="font-semibold text-violet">
+              Crea un account gratis
+            </a>{" "}
+            per condividere le tue presentazioni con un link.
+          </p>
+        ) : !props.emailVerified ? (
           <p className="rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">Conferma la tua email per pubblicare. Ti abbiamo inviato il link al momento della registrazione.</p>
         ) : (
           <>

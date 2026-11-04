@@ -12,6 +12,7 @@ import { burnPasswordCheck, hashPassword, isPasswordBreached, verifyPassword } f
 import { createSession, destroySession, getSession, revokeAllSessions } from "@/lib/auth/session";
 import { consumeEmailToken, issueEmailToken } from "@/lib/auth/email-tokens";
 import { consumeTotp, hashRecoveryCode } from "@/lib/auth/totp";
+import { isGuestEmail } from "@/lib/guest";
 import {
   emailSchema,
   fieldErrors,
@@ -51,6 +52,7 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
   const parsed = signupSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
   const { kind, name, email, password } = parsed.data;
+  if (isGuestEmail(email)) return { errors: { email: "Usa un indirizzo email reale." }, values };
 
   const allowed =
     (await rateLimit(`signup:ip:${await clientIp()}`, 5, 60 * 60)) &&

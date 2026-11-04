@@ -8,6 +8,8 @@ import { hashPassword, isPasswordBreached, verifyPassword } from "@/lib/auth/pas
 import { createSession, destroySession, requireUser, revokeAllSessions } from "@/lib/auth/session";
 import { consumeTotp, createTotpEnrollment, generateRecoveryCodes } from "@/lib/auth/totp";
 import { passwordSchema, totpCodeSchema, type FormState } from "@/lib/validation";
+import { isGuestEmail } from "@/lib/guest";
+import { redirect } from "next/navigation";
 
 export type EnrollState = FormState & { qrDataUrl?: string; secret?: string; recoveryCodes?: string[] };
 
@@ -119,4 +121,23 @@ export async function revokeOtherSessionsAction() {
   await rotateSessions(user.id);
   await audit("sessions.revoked", user.id);
   revalidatePath("/impostazioni");
+}
+
+/**
+ * Deletes the account for good: presentations (published ones included), images, sessions,
+ * tokens and recovery codes go with it (database cascade). The security log keeps its rows,
+ * no longer linked to anyone. A real account needs its password; a guest has none to give.
+ */
+export async function deleteAccountAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  if (!(await rateLimit(`account-delete:${user.id}`, 5, 15 * 60))) return { message: TOO_MANY };
+  if (formData.get("confirm") !== "on") return { errors: { confirm: "Conferma che vuoi eliminare tutto" } };
+  if (!isGuestEmail(user.email) && !(await confirmPassword(user.id, formData.get("password")))) {
+    return { errors: { password: "Password non corretta" } };
+  }
+
+  await audit("account.deleted", user.id);
+  await destroySession();
+  await db.user.delete({ where: { id: user.id } });
+  redirect("/accedi?eliminato=1");
 }

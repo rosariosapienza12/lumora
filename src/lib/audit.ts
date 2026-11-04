@@ -18,7 +18,9 @@ export type AuditAction =
   | "2fa.recovery.used"
   | "sessions.revoked"
   | "presentation.published"
-  | "presentation.unpublished";
+  | "presentation.unpublished"
+  | "guest.started"
+  | "account.deleted";
 
 /** Never put secrets (passwords, tokens, codes) in `meta`. */
 export async function audit(action: AuditAction, userId: string | null, meta?: Record<string, string | number | boolean>) {
