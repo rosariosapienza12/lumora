@@ -36,6 +36,10 @@ const OFF_THREAD_MIN = 160;
 // About two texels per pixel across the visible half, so the surface never looks soft.
 const textureWidth = (diameterPx: number) => (diameterPx >= 360 ? 2048 : diameterPx >= 100 ? 1024 : diameterPx >= 30 ? 512 : 256);
 
+/** Phones and tablets: at most 2× pixels and 1024px textures. Sharper is invisible there, and costs memory and battery. */
+const TOUCH_MAX_DPR = 2;
+const TOUCH_MAX_TEXTURE = 1024;
+
 export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAULT_LIGHT, className = "", still = false }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   /** The render worker of the current canvas, kept across React's development double effects. */
@@ -49,7 +53,8 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || size < 2) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, touch ? TOUCH_MAX_DPR : 2.5);
     const D = Math.max(4, Math.min(MAX_PIXELS, Math.round(size * dpr)));
     const S = canvasSide(D, ringed);
     const options: SphereOptions = { kind, D, ringed, spin, tilt, light: lightKey.split(",").map(Number) as [number, number, number], reduce: Boolean(reduce), still };
@@ -101,7 +106,7 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
     io.observe(canvas);
 
     // Progressive: each step sharper than the last, a rough sphere at once and full detail a few seconds later.
-    const target = textureWidth(D);
+    const target = touch ? Math.min(textureWidth(D), TOUCH_MAX_TEXTURE) : textureWidth(D);
     const steps = [256, 1024, 2048].filter((w) => w < target).concat(target);
     steps.reduce<Promise<void>>(
       (prev, w) => prev.then(() => (cancelled ? undefined : loadPlanetTexture(kind, w).then((t) => (cancelled ? undefined : deliver(t))))),
@@ -118,7 +123,9 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
   return (
     <canvas
       // A canvas handed to a worker cannot be taken back: new settings get a fresh element.
-      key={`${kind}-${size}-${spin}-${tilt}-${lightKey}-${reduce}-${still}`}
+      // `still` is not part of the key: pausing or restarting the spin reuses the same canvas and
+      // worker (the effect re-sends "init"), instead of rebuilding the planet at every stop of the tour.
+      key={`${kind}-${size}-${spin}-${tilt}-${lightKey}-${reduce}`}
       ref={ref}
       aria-hidden
       className={className}
