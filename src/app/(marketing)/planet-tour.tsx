@@ -18,6 +18,7 @@ import { loadPlanetTexture, RINGED } from "@/components/planets/textures";
 import { FEATURES, tourAnchor, type Feature } from "./features";
 import { FeatureDemo } from "./feature-demos";
 import { WarpField } from "./warp-field";
+import { SpaceEvents } from "./space-events";
 
 /**
  * Scroll-driven flight through the Lumora system: one screen per world, one
@@ -155,6 +156,10 @@ export function PlanetTour() {
   const stageX = mobile ? 0.5 : 0.3;
   const stageY = mobile ? 0.28 : 0.5;
   const feature = FEATURES[active];
+  // The stage is the rounded box inside the page padding (p-3 / sm:p-5): space events orbit
+  // the planet, whose centre is at (stageX, stageY) of that box.
+  const pad = vp.w < 640 ? 12 : 20;
+  const eventStage = { cx: (vp.w - 2 * pad) * stageX, cy: (vp.h - 2 * pad) * stageY, r: planetSize / 2, mobile };
 
   const jump = (i: number) => {
     const el = sectionRef.current;
@@ -190,6 +195,10 @@ export function PlanetTour() {
               ) : null,
             )}
           </div>
+
+          {/* A shooting star, meteors, an alien ship... a small show at every jump between planets,
+              in front of the planet and under the text. */}
+          <SpaceEvents active={active} reduce={Boolean(reduce)} stage={eventStage} />
 
           <div className={`absolute z-10 ${mobile ? "inset-x-5 bottom-[4.5rem] top-[47%]" : "right-28 top-1/2 w-[38%] max-w-md -translate-y-1/2"}`}>
             <AnimatePresence mode="wait">
