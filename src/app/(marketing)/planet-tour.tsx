@@ -18,6 +18,7 @@ import { loadPlanetTexture, RINGED } from "@/components/planets/textures";
 import { FEATURES, tourAnchor, type Feature } from "./features";
 import { FeatureDemo } from "./feature-demos";
 import { WarpField } from "./warp-field";
+import { SpaceEvents } from "./space-events";
 
 /**
  * Scroll-driven flight through the Lumora system: one screen per world, one
@@ -87,6 +88,49 @@ function useSnapToStops(sectionRef: RefObject<HTMLElement | null>, reduce: boole
   }, [sectionRef, reduce]);
 }
 
+/** Pause (ms) without wheel events that ends a gesture: a trackpad flick sends dozens of small events. */
+const WHEEL_GESTURE_GAP = 200;
+/** Minimum time between two jumps, so the glide to a planet always completes. */
+const WHEEL_MIN_INTERVAL = 650;
+
+/**
+ * Mouse wheel and trackpad: every gesture moves exactly one planet forward or back, however
+ * small or long, so the tour never rests between two worlds. At the first and last planet the page
+ * scrolls on normally. Touch screens keep their native scrolling.
+ */
+function useWheelSteps(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
+  useEffect(() => {
+    if (isTouch()) return;
+    let lastEvent = 0;
+    let lastJump = -Infinity;
+    const onWheel = (e: WheelEvent) => {
+      const el = sectionRef.current;
+      const dir = Math.sign(e.deltaY);
+      if (!el || !dir || e.ctrlKey) return; // ctrl + wheel is the browser zoom
+      const rect = el.getBoundingClientRect();
+      // Only while the tour fills the screen.
+      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) return;
+      const step = (el.offsetHeight - window.innerHeight) / (N - 1);
+      const current = Math.max(0, Math.min(N - 1, Math.round(-rect.top / step)));
+      const next = current + dir;
+      if (next < 0 || next > N - 1) return; // leaving the tour: normal scrolling
+
+      e.preventDefault();
+      const now = performance.now();
+      const newGesture = now - lastEvent > WHEEL_GESTURE_GAP;
+      lastEvent = now;
+      // One gesture, one planet: the rest of a flick (and its inertia) is swallowed.
+      if (!newGesture || now - lastJump < WHEEL_MIN_INTERVAL) return;
+      lastJump = now;
+      const top = rect.top + window.scrollY;
+      window.scrollTo({ top: top + next * step, behavior: reduce ? "auto" : "smooth" });
+    };
+    // passive: false, otherwise preventDefault cannot stop the native scroll.
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [sectionRef, reduce]);
+}
+
 export function PlanetTour() {
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end end"] });
@@ -96,6 +140,7 @@ export function PlanetTour() {
   const vp = useViewport();
   const reduce = useReducedMotion();
   useSnapToStops(sectionRef, reduce);
+  useWheelSteps(sectionRef, reduce);
 
   // Prepare every world in arrival order (in workers), so planets are ready before you reach them.
   useEffect(() => {
@@ -111,6 +156,10 @@ export function PlanetTour() {
   const stageX = mobile ? 0.5 : 0.3;
   const stageY = mobile ? 0.28 : 0.5;
   const feature = FEATURES[active];
+  // The stage is the rounded box inside the page padding (p-3 / sm:p-5): space events orbit
+  // the planet, whose centre is at (stageX, stageY) of that box.
+  const pad = vp.w < 640 ? 12 : 20;
+  const eventStage = { cx: (vp.w - 2 * pad) * stageX, cy: (vp.h - 2 * pad) * stageY, r: planetSize / 2, mobile };
 
   const jump = (i: number) => {
     const el = sectionRef.current;
@@ -146,6 +195,10 @@ export function PlanetTour() {
               ) : null,
             )}
           </div>
+
+          {/* A shooting star, meteors, an alien ship... a small show at every jump between planets,
+              in front of the planet and under the text. */}
+          <SpaceEvents active={active} reduce={Boolean(reduce)} stage={eventStage} />
 
           <div className={`absolute z-10 ${mobile ? "inset-x-5 bottom-[4.5rem] top-[47%]" : "right-28 top-1/2 w-[38%] max-w-md -translate-y-1/2"}`}>
             <AnimatePresence mode="wait">
