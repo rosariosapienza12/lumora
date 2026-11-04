@@ -95,7 +95,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    | `APP_URL` | the site address, e.g. `https://lumora.vercel.app` |
 
 3. **Deploy.** Vercel runs the `vercel-build` script, which applies the database
-   migrations and then builds the app.
+   migrations and then builds the app. `vercel.json` runs the server code in
+   Frankfurt (`fra1`), next to a Neon database in Frankfurt: every page makes
+   several database queries, and a server on another continent would add a
+   round trip across the ocean to each one. Pick the region of your database.
 
 Optional extras:
 - `RESEND_API_KEY` and `MAIL_FROM` (a domain verified on [Resend](https://resend.com))

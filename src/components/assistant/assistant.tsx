@@ -65,6 +65,127 @@ function loadConversation(): Message[] {
   }
 }
 
+/** Where the user dragged Zib, as an offset from its corner. Remembered in this browser only. */
+const POSITION_KEY = "lumora-zib-position";
+/** Movement (px) after which a press becomes a drag instead of a tap. */
+const DRAG_THRESHOLD = 6;
+const EDGE = 8;
+
+type Offset = { x: number; y: number };
+
+function readOffset(): Offset {
+  try {
+    const saved = JSON.parse(localStorage.getItem(POSITION_KEY) ?? "null") as unknown;
+    if (saved && typeof saved === "object" && Number.isFinite((saved as Offset).x) && Number.isFinite((saved as Offset).y)) {
+      return { x: (saved as Offset).x, y: (saved as Offset).y };
+    }
+  } catch {
+    // Private mode or blocked storage: Zib simply starts in its corner.
+  }
+  return { x: 0, y: 0 };
+}
+
+/**
+ * Lets the launcher be dragged anywhere on screen with a finger or the mouse, clamped to the
+ * viewport. A short press is still a tap (opens the chat); a press that moves is a drag.
+ */
+function useDraggable(onDragStart: () => void) {
+  const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const drag = useRef<{ id: number; startX: number; startY: number; from: Offset; rect: DOMRect; moved: boolean } | null>(null);
+  /** True right after a drag, so the click that ends it does not toggle the chat. */
+  const justDragged = useRef(false);
+
+  /** Keeps the whole launcher on screen. */
+  const clamp = (next: Offset, rect: DOMRect, from: Offset): Offset => {
+    // rect was measured at `from`; work out where the launcher would be at `next`.
+    const left = rect.left + (next.x - from.x);
+    const top = rect.top + (next.y - from.y);
+    const maxLeft = window.innerWidth - rect.width - EDGE;
+    const maxTop = window.innerHeight - rect.height - EDGE;
+    return {
+      x: next.x + (Math.min(Math.max(left, EDGE), maxLeft) - left),
+      y: next.y + (Math.min(Math.max(top, EDGE), maxTop) - top),
+    };
+  };
+
+  // Restore the saved spot, and keep Zib on screen when the window shrinks or the phone rotates.
+  useEffect(() => {
+    const fit = () =>
+      setOffset((current) => {
+        const rect = ref.current?.getBoundingClientRect();
+        return rect ? clamp(current, rect, current) : current;
+      });
+    // After the first paint (the server cannot read localStorage): move Zib to its saved spot,
+    // measured from the corner where it was just drawn.
+    const frame = requestAnimationFrame(() =>
+      setOffset((current) => {
+        const rect = ref.current?.getBoundingClientRect();
+        const saved = readOffset();
+        return rect ? clamp(saved, rect, current) : saved;
+      }),
+    );
+    window.addEventListener("resize", fit);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", fit);
+    };
+  }, []);
+
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0) return;
+      // Capture at once: a fast first movement can leave the launcher before it counts as a drag.
+      // The click still fires on release, because press and release both land on the launcher.
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, from: offset, rect: e.currentTarget.getBoundingClientRect(), moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+      const d = drag.current;
+      if (!d || d.id !== e.pointerId) return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (!d.moved) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        d.moved = true;
+        setDragging(true);
+        onDragStart();
+      }
+      setOffset(clamp({ x: d.from.x + dx, y: d.from.y + dy }, d.rect, d.from));
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+      const d = drag.current;
+      drag.current = null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      if (!d?.moved) return;
+      setDragging(false);
+      justDragged.current = true;
+      setOffset((final) => {
+        try {
+          localStorage.setItem(POSITION_KEY, JSON.stringify(final));
+        } catch {
+          // Not saved: Zib goes back to its corner on the next visit.
+        }
+        return final;
+      });
+    },
+    onPointerCancel: () => {
+      drag.current = null;
+      setDragging(false);
+    },
+  };
+
+  /** Call at the start of the click handler: true if this click only ended a drag. */
+  const consumeDrag = () => {
+    const was = justDragged.current;
+    justDragged.current = false;
+    return was;
+  };
+
+  return { ref, offset, dragging, handlers, consumeDrag };
+}
+
 export function Assistant() {
   const [open, setOpen] = useState(false);
   // The panel starts closed, so reading storage here cannot cause a hydration mismatch.
@@ -153,8 +274,16 @@ export function Assistant() {
     setMessages([]);
   };
 
+  const { ref: launcherRef, offset, dragging, handlers, consumeDrag } = useDraggable(() => setHint(false));
+  // While the chat is open Zib sits in its corner, so the panel above it always fits on screen.
+  const shift = open ? { x: 0, y: 0 } : offset;
+
   return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+    <div
+      className="fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6"
+      // Follows the finger exactly while dragging; glides when going to or from the corner.
+      style={{ transform: `translate(${shift.x}px, ${shift.y}px)`, transition: dragging || reduce ? "none" : "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)" }}
+    >
       <AnimatePresence>
         {open && (
           <motion.section
@@ -271,14 +400,19 @@ export function Assistant() {
           )}
         </AnimatePresence>
         <button
+          ref={launcherRef}
           type="button"
+          {...handlers}
           onClick={() => {
+            if (consumeDrag()) return;
             setHint(false);
             setOpen((o) => !o);
           }}
           aria-expanded={open}
-          aria-label={open ? "Chiudi l'assistente Zib" : "Apri l'assistente Zib"}
-          className="zib-button group relative h-20 w-20 transition-transform hover:scale-105 active:scale-95 sm:h-24 sm:w-24"
+          aria-label={open ? "Chiudi l'assistente Zib" : "Apri l'assistente Zib (puoi anche trascinarlo)"}
+          title="Tocca per parlare con Zib, trascina per spostarlo"
+          // touch-none: dragging Zib with a finger must not scroll the page underneath.
+          className="zib-button group relative h-20 w-20 touch-none select-none transition-transform hover:scale-105 active:scale-95 sm:h-24 sm:w-24"
         >
           <AlienShip className="h-full w-full drop-shadow-[0_8px_18px_rgba(91,61,245,0.45)]" beam={open} thinking={busy} />
         </button>
