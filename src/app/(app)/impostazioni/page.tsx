@@ -25,7 +25,7 @@ export default async function SettingsPage() {
 
       <section className="rounded-3xl border border-line bg-paper p-6">
         <h2 className="mb-1 font-display text-xl font-semibold">Profilo</h2>
-        <p className="text-ink-soft">
+        <p className="break-words text-ink-soft [overflow-wrap:anywhere]">
           {user.name} · {user.email}
         </p>
         {!user.emailVerifiedAt && (
