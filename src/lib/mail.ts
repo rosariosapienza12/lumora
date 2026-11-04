@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "./env";
+import { env, isProd } from "./env";
 
 export type Mail = { to: string; subject: string; text: string };
 
@@ -25,7 +25,11 @@ async function deliver(mail: Mail) {
     await sendWithResend(mail, env.RESEND_API_KEY, env.MAIL_FROM);
     return;
   }
-  // In production env.ts refuses to start without a provider, so this is development only.
+  if (isProd) {
+    // No provider configured: the pages tell people that email is switched off.
+    console.warn("email not sent: RESEND_API_KEY and MAIL_FROM are not set");
+    return;
+  }
   console.info(`\n──── EMAIL (dev) ────\nTo: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.text}\n─────────────────────\n`);
 }
 

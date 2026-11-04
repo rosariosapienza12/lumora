@@ -78,12 +78,40 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 `ANTHROPIC_API_KEY` is optional: without it, Zib answers using the built-in guide.
 
+## Deploying for free (Vercel + Neon)
+
+1. **Database:** create a free project on [Neon](https://neon.tech) and copy the
+   connection string with connection pooling switched off (migrations need a direct
+   connection).
+2. **App:** on [Vercel](https://vercel.com) choose **Add New → Project**, import this
+   repository and add these environment variables:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | the Neon connection string |
+   | `ENCRYPTION_KEY` | 32 random bytes in base64 (command above) |
+   | `APP_URL` | the site address, e.g. `https://lumora.vercel.app` |
+
+3. **Deploy.** Vercel runs the `vercel-build` script, which applies the database
+   migrations and then builds the app.
+
+Optional extras:
+- `RESEND_API_KEY` and `MAIL_FROM` (a domain verified on [Resend](https://resend.com))
+  to send confirmation and password-reset emails. Without them, people can still sign
+  up, sign in, use the editor and try Lumora as a guest, but publishing needs a
+  confirmed email.
+- `ANTHROPIC_API_KEY` for Zib's AI answers. Without it, Zib uses its built-in guide.
+
+`TRUSTED_PROXY_HOPS` stays `0` on Vercel, which replaces `X-Forwarded-For` with the
+real client address.
+
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | development server |
 | `npm run build` | production build |
+| `npm run vercel-build` | database migrations + production build (used by Vercel) |
 | `npm start` | starts the production build |
 | `npm test` | unit tests |
 | `npm run lint` | code linting |

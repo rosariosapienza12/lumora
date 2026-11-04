@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { emailEnabled } from "@/lib/env";
 import { requireUser } from "@/lib/auth/session";
 import { Button } from "@/components/ui";
 import { TwoFactorPanel } from "./two-factor-panel";
@@ -30,7 +31,9 @@ export default async function SettingsPage() {
         </p>
         {!user.emailVerifiedAt && (
           <p className="mt-3 rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">
-            Email non ancora confermata: apri il link che ti abbiamo inviato. Serve per pubblicare le presentazioni.
+            {emailEnabled
+              ? "Email non ancora confermata: apri il link che ti abbiamo inviato. Serve per pubblicare le presentazioni."
+              : "Email non confermata: in questa versione dimostrativa le email sono spente, quindi la pubblicazione non è disponibile."}
           </p>
         )}
       </section>

@@ -4,7 +4,7 @@ import { z } from "zod";
 /** An empty variable (KEY= in .env) counts as not set. */
 const optional = <T extends z.ZodTypeAny>(s: T) => z.preprocess((v) => (v === "" ? undefined : v), s.optional());
 
-const schema = z
+export const envSchema = z
   .object({
     DATABASE_URL: z.string().url().refine((v) => /^postgres(ql)?:\/\//.test(v), "DATABASE_URL must be a PostgreSQL URL"),
     ENCRYPTION_KEY: z
@@ -16,8 +16,9 @@ const schema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // Optional: without it the assistant uses its on-board brain. Read only on the server.
     ANTHROPIC_API_KEY: optional(z.string().regex(/^sk-ant-[A-Za-z0-9_-]{20,}$/, "ANTHROPIC_API_KEY is not a valid Anthropic key")),
-    // Transactional email through Resend (https://resend.com). Required in production:
-    // without it nobody can confirm their email, reset a password or publish.
+    // Transactional email through Resend (https://resend.com). Optional: without it, people can
+    // still sign up, sign in and use the editor, but cannot confirm their email (so cannot
+    // publish) or reset a forgotten password.
     RESEND_API_KEY: optional(z.string().regex(/^re_[A-Za-z0-9_]{10,}$/, "RESEND_API_KEY is not a valid Resend key")),
     // Sender, e.g. "Lumora <noreply@yourdomain.com>" (the domain must be verified on Resend).
     MAIL_FROM: optional(z.string().min(3).max(200)),
@@ -27,12 +28,16 @@ const schema = z
     message: "APP_URL must use https in production",
     path: ["APP_URL"],
   })
-  .refine((e) => e.NODE_ENV !== "production" || (e.RESEND_API_KEY && e.MAIL_FROM), {
-    message: "RESEND_API_KEY and MAIL_FROM are required in production",
-    path: ["RESEND_API_KEY"],
+  // Half a configuration is always a mistake.
+  .refine((e) => Boolean(e.RESEND_API_KEY) === Boolean(e.MAIL_FROM), {
+    message: "Set both RESEND_API_KEY and MAIL_FROM, or neither",
+    path: ["MAIL_FROM"],
   });
 
 // Fails fast at startup if configuration is missing or malformed.
-export const env = schema.parse(process.env);
+export const env = envSchema.parse(process.env);
 
 export const isProd = env.NODE_ENV === "production";
+
+/** In development emails are printed to the terminal; in production they need a provider. */
+export const emailEnabled = !isProd || Boolean(env.RESEND_API_KEY && env.MAIL_FROM);
