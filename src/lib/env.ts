@@ -16,11 +16,20 @@ const schema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // Optional: without it the assistant uses its on-board brain. Read only on the server.
     ANTHROPIC_API_KEY: optional(z.string().regex(/^sk-ant-[A-Za-z0-9_-]{20,}$/, "ANTHROPIC_API_KEY is not a valid Anthropic key")),
+    // Transactional email through Resend (https://resend.com). Required in production:
+    // without it nobody can confirm their email, reset a password or publish.
+    RESEND_API_KEY: optional(z.string().regex(/^re_[A-Za-z0-9_]{10,}$/, "RESEND_API_KEY is not a valid Resend key")),
+    // Sender, e.g. "Lumora <noreply@yourdomain.com>" (the domain must be verified on Resend).
+    MAIL_FROM: optional(z.string().min(3).max(200)),
   })
   // In production the site must be served over HTTPS (secure cookies, HSTS).
   .refine((e) => e.NODE_ENV !== "production" || e.APP_URL.startsWith("https://") || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.APP_URL), {
     message: "APP_URL must use https in production",
     path: ["APP_URL"],
+  })
+  .refine((e) => e.NODE_ENV !== "production" || (e.RESEND_API_KEY && e.MAIL_FROM), {
+    message: "RESEND_API_KEY and MAIL_FROM are required in production",
+    path: ["RESEND_API_KEY"],
   });
 
 // Fails fast at startup if configuration is missing or malformed.

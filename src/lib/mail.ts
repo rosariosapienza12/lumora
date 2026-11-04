@@ -1,14 +1,31 @@
 import "server-only";
-import { isProd } from "./env";
+import { env } from "./env";
 
-type Mail = { to: string; subject: string; text: string };
+export type Mail = { to: string; subject: string; text: string };
+
+const RESEND_URL = "https://api.resend.com/emails";
+
+/** Sends one email through Resend. Throws on any failure, without echoing the message. */
+export async function sendWithResend(mail: Mail, apiKey: string, from: string, fetchImpl: typeof fetch = fetch) {
+  const response = await fetchImpl(RESEND_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [mail.to], subject: mail.subject, text: mail.text }),
+    // A provider that hangs must not keep requests open forever.
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    // Only the status: the body may echo the message, which contains single-use links.
+    throw new Error(`Resend responded ${response.status}`);
+  }
+}
 
 async function deliver(mail: Mail) {
-  if (isProd) {
-    // Plug in a transactional email provider here (e.g. Resend, Postmark) before going live.
-    // Never log the message body: it contains single-use links.
-    throw new Error("No email provider configured");
+  if (env.RESEND_API_KEY && env.MAIL_FROM) {
+    await sendWithResend(mail, env.RESEND_API_KEY, env.MAIL_FROM);
+    return;
   }
+  // In production env.ts refuses to start without a provider, so this is development only.
   console.info(`\n──── EMAIL (dev) ────\nTo: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.text}\n─────────────────────\n`);
 }
 
