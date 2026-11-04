@@ -87,6 +87,49 @@ function useSnapToStops(sectionRef: RefObject<HTMLElement | null>, reduce: boole
   }, [sectionRef, reduce]);
 }
 
+/** Pause (ms) without wheel events that ends a gesture: a trackpad flick sends dozens of small events. */
+const WHEEL_GESTURE_GAP = 200;
+/** Minimum time between two jumps, so the glide to a planet always completes. */
+const WHEEL_MIN_INTERVAL = 650;
+
+/**
+ * Mouse wheel and trackpad: every gesture moves exactly one planet forward or back, however
+ * small or long, so the tour never rests between two worlds. At the first and last planet the page
+ * scrolls on normally. Touch screens keep their native scrolling.
+ */
+function useWheelSteps(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
+  useEffect(() => {
+    if (isTouch()) return;
+    let lastEvent = 0;
+    let lastJump = -Infinity;
+    const onWheel = (e: WheelEvent) => {
+      const el = sectionRef.current;
+      const dir = Math.sign(e.deltaY);
+      if (!el || !dir || e.ctrlKey) return; // ctrl + wheel is the browser zoom
+      const rect = el.getBoundingClientRect();
+      // Only while the tour fills the screen.
+      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) return;
+      const step = (el.offsetHeight - window.innerHeight) / (N - 1);
+      const current = Math.max(0, Math.min(N - 1, Math.round(-rect.top / step)));
+      const next = current + dir;
+      if (next < 0 || next > N - 1) return; // leaving the tour: normal scrolling
+
+      e.preventDefault();
+      const now = performance.now();
+      const newGesture = now - lastEvent > WHEEL_GESTURE_GAP;
+      lastEvent = now;
+      // One gesture, one planet: the rest of a flick (and its inertia) is swallowed.
+      if (!newGesture || now - lastJump < WHEEL_MIN_INTERVAL) return;
+      lastJump = now;
+      const top = rect.top + window.scrollY;
+      window.scrollTo({ top: top + next * step, behavior: reduce ? "auto" : "smooth" });
+    };
+    // passive: false, otherwise preventDefault cannot stop the native scroll.
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [sectionRef, reduce]);
+}
+
 export function PlanetTour() {
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end end"] });
@@ -96,6 +139,7 @@ export function PlanetTour() {
   const vp = useViewport();
   const reduce = useReducedMotion();
   useSnapToStops(sectionRef, reduce);
+  useWheelSteps(sectionRef, reduce);
 
   // Prepare every world in arrival order (in workers), so planets are ready before you reach them.
   useEffect(() => {
