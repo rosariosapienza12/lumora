@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth/session";
 import { logoutAction } from "../(auth)/actions";
 import { Logo } from "@/components/ui";
 import { Assistant } from "@/components/assistant/assistant";
+import { isGuestEmail } from "@/lib/guest";
+import { GuestBanner } from "@/components/guest-banner";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
@@ -28,6 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </form>
         </div>
       </header>
+      {isGuestEmail(user.email) && <GuestBanner />}
       <main className="flex-1 px-5 py-8">{children}</main>
       <Assistant />
     </div>

@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { ButtonLink } from "@/components/ui";
+import { GuestButton } from "../prova/guest-button";
 import { SolarSystem } from "./solar-system";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -50,7 +51,8 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.8, duration: 0.6 }}
         >
-          <ButtonLink href="/registrati" className="px-6 py-3 text-base">
+          <GuestButton className="px-6 py-3 text-base">Prova subito, senza account</GuestButton>
+          <ButtonLink href="/registrati" variant="ghost" className="px-6 py-3 text-base text-white ring-1 ring-white/30 hover:bg-white/10">
             Crea un account gratis
           </ButtonLink>
           <ButtonLink href="#viaggio" variant="ghost" className="px-6 py-3 text-base text-white hover:bg-white/10">

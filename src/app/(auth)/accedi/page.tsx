@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { FormMessage } from "@/components/ui";
 import { safeNext } from "@/lib/validation";
+import { GuestButton } from "../../prova/guest-button";
 
 export const metadata: Metadata = { title: "Accedi" };
 
@@ -25,6 +26,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/accedi">) 
           <FormMessage tone="ok">{notice}</FormMessage>
         </div>
       )}
+      {params.ospite === "limite" && (
+        <div className="mb-4">
+          <FormMessage>Troppe prove da questa rete in poco tempo. Riprova più tardi oppure crea un account.</FormMessage>
+        </div>
+      )}
       <LoginForm next={next} />
       <p className="mt-6 text-center text-sm text-ink-soft">
         Non hai un account?{" "}
@@ -32,6 +38,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/accedi">) 
           Registrati gratis
         </Link>
       </p>
+      <div className="mt-4 flex flex-col items-center gap-2 border-t border-line pt-4 text-sm text-ink-soft">
+        <span>Vuoi solo dare un&apos;occhiata?</span>
+        <GuestButton variant="outline" />
+      </div>
     </>
   );
 }

@@ -9,6 +9,7 @@ import { SlideThumb } from "@/components/slide/element-view";
 import { LayoutPicker } from "./layout-picker";
 import { Player } from "@/components/player/player";
 import { Logo } from "@/components/ui";
+import { GuestBanner } from "@/components/guest-banner";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { currentPage, initState, reducer } from "./store";
@@ -31,6 +32,8 @@ export function Editor(props: {
   initialSlug: string | null;
   initialHasPassword: boolean;
   emailVerified: boolean;
+  /** Temporary guest account: show a reminder and explain why sharing is off. */
+  guest?: boolean;
   appUrl: string;
   /** Tip shown when arriving from a homepage planet shortcut. */
   hint?: string | null;
@@ -141,6 +144,7 @@ export function Editor(props: {
     // Desktop: three fixed columns filling the screen. Phones and small tablets: one scrolling
     // column with the slide first, then the page strip, then the properties.
     <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+      {props.guest && <GuestBanner />}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-paper px-4 py-2.5">
         <Logo className="shrink-0" compact />
         <Link href="/dashboard" className="hidden rounded-full px-3 py-1.5 text-sm hover:bg-mist md:inline">
@@ -304,6 +308,7 @@ export function Editor(props: {
             id={props.id}
             appUrl={props.appUrl}
             emailVerified={props.emailVerified}
+            guest={props.guest}
             initialSlug={props.initialSlug}
             initialHasPassword={props.initialHasPassword}
             onClose={() => setSharing(false)}
@@ -318,6 +323,7 @@ function ShareDialog(props: {
   id: string;
   appUrl: string;
   emailVerified: boolean;
+  guest?: boolean;
   initialSlug: string | null;
   initialHasPassword: boolean;
   onClose: () => void;
@@ -383,7 +389,15 @@ function ShareDialog(props: {
         <h2 id="share-title" className="font-display text-2xl font-bold">
           Condividi
         </h2>
-        {!props.emailVerified ? (
+        {props.guest ? (
+          <p className="rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">
+            Come ospite puoi creare e presentare, ma non pubblicare.{" "}
+            <a href="/registrati" className="font-semibold text-violet">
+              Crea un account gratis
+            </a>{" "}
+            per condividere le tue presentazioni con un link.
+          </p>
+        ) : !props.emailVerified ? (
           <p className="rounded-xl bg-amber/15 px-3.5 py-2.5 text-sm">Conferma la tua email per pubblicare. Ti abbiamo inviato il link al momento della registrazione.</p>
         ) : (
           <>

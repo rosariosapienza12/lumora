@@ -1,5 +1,6 @@
 import "server-only";
 import { env, isProd } from "./env";
+import { isGuestEmail } from "./guest";
 
 export type Mail = { to: string; subject: string; text: string };
 
@@ -38,5 +39,7 @@ async function deliver(mail: Mail) {
  * outcome must not depend on whether an email was sent (prevents account enumeration).
  */
 export function queueMail(mail: Mail) {
+  // Guest addresses are undeliverable by design (.invalid domain).
+  if (isGuestEmail(mail.to)) return;
   void deliver(mail).catch((err) => console.error("email delivery failed:", err instanceof Error ? err.message : err));
 }
