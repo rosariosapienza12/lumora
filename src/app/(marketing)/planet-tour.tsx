@@ -33,7 +33,16 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 function useViewport() {
   const [vp, setVp] = useState({ w: 1280, h: 800 });
   useEffect(() => {
-    const update = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    const update = () =>
+      setVp((prev) => {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        // On phones the address bar slides in and out while scrolling, changing the height by
+        // up to ~15%. Reacting to that would resize (and rebuild) the planet mid-scroll, so only a
+        // new width (rotation, window resize) or a big height change counts.
+        if (w === prev.w && Math.abs(h - prev.h) < prev.h * 0.2) return prev;
+        return { w, h };
+      });
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
@@ -41,9 +50,14 @@ function useViewport() {
   return vp;
 }
 
+/** Touch screens: finger scrolling has its own momentum, and fighting it feels like the page froze. */
+const isTouch = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
 /** After scrolling stops inside the tour, glide to the nearest planet. */
 function useSnapToStops(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
   useEffect(() => {
+    // Only with a mouse or trackpad: on touch screens snapping interrupts the finger's momentum.
+    if (isTouch()) return;
     let timer = 0;
     let snapping = false;
     const onScroll = () => {
@@ -85,7 +99,9 @@ export function PlanetTour() {
 
   // Prepare every world in arrival order (in workers), so planets are ready before you reach them.
   useEffect(() => {
-    for (const f of FEATURES) loadPlanetTexture(f.kind, 256).then(() => loadPlanetTexture(f.kind, 1024));
+    // Phones only preload the light version; each planet fetches its sharper texture when shown.
+    const touch = isTouch();
+    for (const f of FEATURES) loadPlanetTexture(f.kind, 256).then(() => (touch ? undefined : loadPlanetTexture(f.kind, 1024)));
   }, []);
 
   useMotionValueEvent(position, "change", (v) => setActive(Math.max(0, Math.min(N - 1, Math.round(v)))));
@@ -137,10 +153,11 @@ export function PlanetTour() {
             </AnimatePresence>
           </div>
 
-          {/* Index of worlds: real miniatures. */}
+          {/* Index of worlds: real miniatures. On phones the row starts from the left and leaves the
+              bottom-right corner free, where Zib's launcher sits and would cover the last planets. */}
           <nav
             aria-label="Tappe del viaggio"
-            className={`absolute z-20 flex items-center gap-1.5 ${mobile ? "bottom-5 left-1/2 -translate-x-1/2" : "right-6 top-1/2 -translate-y-1/2 flex-col"}`}
+            className={`absolute z-20 flex items-center ${mobile ? "bottom-5 left-3 gap-0.5" : "right-6 top-1/2 -translate-y-1/2 flex-col gap-1.5"}`}
           >
             {FEATURES.map((f, i) => (
               <button
@@ -148,7 +165,7 @@ export function PlanetTour() {
                 onClick={() => jump(i)}
                 aria-label={`${f.title}, pianeta ${f.planet}`}
                 aria-current={i === active ? "step" : undefined}
-                className="group relative grid size-9 place-items-center rounded-full transition-transform hover:scale-110"
+                className={`group relative grid place-items-center rounded-full transition-transform hover:scale-110 ${mobile ? "size-8" : "size-9"}`}
               >
                 <span
                   aria-hidden
@@ -312,16 +329,20 @@ function FeatureCopy({ feature, reduce, mobile }: { feature: Feature; reduce: bo
         ))}
       </motion.ul>
 
-      <motion.div variants={item} className="mt-5">
-        <div className="tour-demo-border rounded-[18px] p-px" style={{ "--glow": feature.glow } as CSSProperties}>
-          <div className="rounded-[17px] bg-[#0b0920]/90">
-            <p className="px-4 pt-3 text-xs font-medium text-white/55">Provala qui</p>
-            <div className="p-2 pt-1.5">
-              <FeatureDemo id={feature.id} accent={feature.glow} />
+      {/* On phones the live demo does not fit: it pushed the text onto the planet and covered the
+          row of planets used to jump between stops. The button below opens the real editor instead. */}
+      {!mobile && (
+        <motion.div variants={item} className="mt-5">
+          <div className="tour-demo-border rounded-[18px] p-px" style={{ "--glow": feature.glow } as CSSProperties}>
+            <div className="rounded-[17px] bg-[#0b0920]/90">
+              <p className="px-4 pt-3 text-xs font-medium text-white/55">Provala qui</p>
+              <div className="p-2 pt-1.5">
+                <FeatureDemo id={feature.id} accent={feature.glow} />
+              </div>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
 
       <motion.div variants={item} className="mt-4">
         <Link
