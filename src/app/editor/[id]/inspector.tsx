@@ -4,8 +4,9 @@ import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
 import { SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
-import { DEFAULT_THEME } from "@/lib/editor/themes";
-import type { ReactNode } from "react";
+import { DEFAULT_THEME, getTheme, PATTERNS, type Pattern } from "@/lib/editor/themes";
+import { relatedLayouts, LAYOUT_NAMES, isLayoutId } from "@/lib/editor/layouts";
+import { useState, type ReactNode } from "react";
 import type { Element, Interaction, Page, PresentationDoc } from "@/lib/editor/schema";
 import { EMPHASIS_ANIMATIONS, ENTER_ANIMATIONS, FONT_FAMILY, FONT_LABELS, FONTS, TRANSITIONS, type FontId } from "@/lib/editor/schema";
 import type { Action, Align } from "./store";
@@ -163,19 +164,53 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
           <button onClick={() => dispatch({ type: "transition-all", transition: page.transition })} className={chip}>
             Usa questa transizione per tutte le pagine
           </button>
+          <Row label="Motivo di sfondo">
+            <select className={inputCls} value={page.pattern ?? "none"} onChange={(e) => dispatch({ type: "pattern", pattern: e.target.value as Pattern })}>
+              {PATTERNS.map((pt) => (
+                <option key={pt} value={pt}>
+                  {PATTERN_LABELS[pt]}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <button onClick={() => dispatch({ type: "pattern", pattern: page.pattern ?? "none", all: true })} className={chip}>
+            Usa questo motivo per tutte le pagine
+          </button>
+          {page.source && relatedLayouts(page.source.layout).length > 1 && (
+            <button onClick={() => dispatch({ type: "relayout" })} className="mt-1 rounded-full bg-violet px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-deep">
+              Cambia impaginazione
+              {(() => {
+                const fam = relatedLayouts(page.source.layout);
+                const next = fam[(fam.indexOf(page.source.layout as never) + 1) % fam.length];
+                return isLayoutId(next) ? `: ${LAYOUT_NAMES[next]}` : "";
+              })()}
+            </button>
+          )}
         </Section>
         <Section title="Tema">
           <p className="text-xs text-ink-soft">Cambia colori e caratteri di tutte le pagine. I colori scelti a mano restano come sono; puoi sempre annullare.</p>
           <ThemePicker compact value={doc.settings?.theme ?? DEFAULT_THEME} onChange={(theme) => dispatch({ type: "apply-theme", theme })} />
+          <div className="grid grid-cols-2 gap-2">
+            {(["accent", "accent2"] as const).map((role) => (
+              <Row key={role} label={role === "accent" ? "Colore principale" : "Secondo colore"}>
+                <ColorInput
+                  value={doc.settings?.colors?.[role] ?? getTheme(doc.settings?.theme).palette[role]}
+                  onChange={(color) => dispatch({ type: "main-color", role, color })}
+                />
+              </Row>
+            ))}
+          </div>
+          <p className="text-xs text-ink-soft">Cambiano ovunque sono usati, in tutte le pagine.</p>
         </Section>
         <Section title="Argomento">
           <p className="text-xs text-ink-soft">Illustrazioni ai margini delle pagine, scelte per l&apos;argomento. Non coprono i contenuti.</p>
           <select
             aria-label="Argomento"
             className={inputCls}
-            value={doc.settings?.motif ?? ""}
-            onChange={(e) => dispatch({ type: "apply-motif", motif: isMotifId(e.target.value) ? e.target.value : undefined })}
+            value={doc.settings?.motif ?? (doc.settings?.decor?.length ? "zib" : "")}
+            onChange={(e) => e.target.value !== "zib" && dispatch({ type: "apply-motif", motif: isMotifId(e.target.value) ? e.target.value : undefined })}
           >
+            {doc.settings?.decor?.length && !doc.settings.motif ? <option value="zib">Scelte da Zib per il tuo argomento</option> : null}
             <option value="">Nessuna decorazione</option>
             {MOTIF_IDS.map((id) => (
               <option key={id} value={id}>
@@ -183,6 +218,14 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
               </option>
             ))}
           </select>
+          <Row label="Quante decorazioni">
+            <select className={inputCls} value={doc.settings?.decorDensity ?? 2} onChange={(e) => dispatch({ type: "decor-density", density: Number(e.target.value) })}>
+              <option value={0}>Nessuna</option>
+              <option value={1}>Poche</option>
+              <option value={2}>Normali</option>
+              <option value={3}>Tante</option>
+            </select>
+          </Row>
         </Section>
         <Section title="Presentazione">
           <Row label="Avanza da sola dopo (secondi, 0 = mai)">
@@ -231,6 +274,7 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
             <Num value={el.progress ?? 75} min={0} max={100} onChange={(progress) => set({ progress })} />
           </Row>
         )}
+        {el.type === "text" && <ZibOnText text={el.text} context={page.source?.content.heading ?? page.name} onText={(text) => set({ text })} />}
         {el.type === "text" && (
           <>
             <Row label="Testo">
@@ -643,4 +687,51 @@ export function describe(el: Element) {
     case "hotspot":
       return `Hotspot ${el.label}`;
   }
+}
+
+const PATTERN_LABELS: Record<Pattern, string> = { none: "Nessuno", dots: "Puntini", grid: "Griglia", lines: "Righe oblique", stars: "Stelle", grain: "Grana della carta" };
+
+const ZIB_ACTIONS = [
+  ["riscrivi", "Riscrivi"],
+  ["accorcia", "Accorcia"],
+  ["semplifica", "Semplifica"],
+  ["allunga", "Arricchisci"],
+  ["inglese", "In inglese"],
+] as const;
+
+/** "Zib sulla pagina": rewrites the selected text with AI; Ctrl+Z brings the old one back. */
+function ZibOnText({ text, context, onText }: { text: string; context: string; onText: (t: string) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const run = async (action: string) => {
+    setBusy(action);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/zib/testo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, action, context: context.slice(0, 200) }) });
+      const data = (await res.json()) as { text?: string; error?: string };
+      if (!res.ok || !data.text) setMsg(data.error ?? "Non è andata, riprova.");
+      else onText(data.text);
+    } catch {
+      setMsg("Controlla la connessione e riprova.");
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="mb-3 rounded-xl bg-mist p-2.5">
+      <p className="mb-1.5 text-xs font-semibold">Zib sulla pagina</p>
+      <div className="flex flex-wrap gap-1.5">
+        {ZIB_ACTIONS.map(([id, label]) => (
+          <button key={id} disabled={Boolean(busy) || !text.trim()} onClick={() => run(id)} className={`${chip} disabled:opacity-50`}>
+            {busy === id ? "Zib scrive…" : label}
+          </button>
+        ))}
+      </div>
+      {msg && (
+        <p role="status" className="mt-1.5 text-xs text-ink-soft">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
 }

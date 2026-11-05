@@ -255,6 +255,8 @@ export const settings = z.object({
   motif: z.enum(MOTIF_IDS).optional(),
   /** Drawings chosen for this presentation's topic (by Zib or by hand): they win over the preset topic. */
   decor: z.array(z.enum(SVG_SHAPE_IDS as [SvgShape, ...SvgShape[]])).min(1).max(6).optional(),
+  /** Main colours picked by hand over the theme's own. */
+  colors: z.object({ accent: color.optional(), accent2: color.optional() }).optional(),
   /** How many decorations per page: 0 none, 1 few, 2 normal, 3 many. */
   decorDensity: z.number().int().min(0).max(3).optional(),
 });

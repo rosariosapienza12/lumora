@@ -187,6 +187,15 @@ export function Editor(props: {
         >
           Esporta PDF
         </a>
+        <a
+          href={`/editor/${props.id}/dispensa`}
+          target="_blank"
+          rel="noopener"
+          className="hidden rounded-full px-3 py-2 text-sm font-semibold hover:bg-mist lg:inline"
+          title="Testi e note di ogni pagina, da dare al pubblico"
+        >
+          Dispensa
+        </a>
         <button onClick={() => setPreviewing(true)} className="rounded-full border border-line px-3 py-2 text-sm font-semibold hover:border-violet sm:px-4">
           Presenta
         </button>
