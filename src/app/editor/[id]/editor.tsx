@@ -12,6 +12,7 @@ import { Logo } from "@/components/ui";
 import { GuestBanner } from "@/components/guest-banner";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
+import { ShapeMenu } from "./shape-menu";
 import { currentPage, initState, reducer } from "./store";
 import { publishAction, saveDocumentAction, unpublishAction } from "./actions";
 
@@ -227,7 +228,10 @@ export function Editor(props: {
         {/* Canvas */}
         <section className="order-1 flex min-w-0 flex-col bg-mist lg:order-none lg:flex-1">
           <div className="flex flex-wrap items-center justify-center gap-1.5 border-b border-line bg-paper/60 px-3 py-2" role="toolbar" aria-label="Aggiungi elementi">
-            {ADDABLE.map((a) => (
+            {ADDABLE.map((a) =>
+              a.kind === "shape" ? (
+                <ShapeMenu key={a.kind} onPick={(shape) => dispatch({ type: "add-element", kind: "shape", shape })} />
+              ) : (
               <button
                 key={a.kind}
                 onClick={() => (a.kind === "image" ? fileRef.current?.click() : dispatch({ type: "add-element", kind: a.kind }))}
@@ -238,7 +242,8 @@ export function Editor(props: {
                 </span>
                 {a.label}
               </button>
-            ))}
+              ),
+            )}
           </div>
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" tabIndex={-1} onChange={upload} />
           <AnimatePresence>

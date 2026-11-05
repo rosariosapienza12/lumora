@@ -8,7 +8,18 @@ import { FitStage } from "@/components/slide/fit-stage";
 import type { Action } from "./store";
 
 type Handle = "nw" | "ne" | "sw" | "se";
-type Drag = { id: string; mode: "move" | Handle; startX: number; startY: number; orig: Pick<Element, "x" | "y" | "w" | "h">; moved: boolean };
+type Drag = {
+  id: string;
+  mode: "move" | "rotate" | Handle;
+  startX: number;
+  startY: number;
+  orig: Pick<Element, "x" | "y" | "w" | "h" | "rotation">;
+  moved: boolean;
+  /** Rotation only: the element's centre on screen and the starting pointer angle. */
+  cx?: number;
+  cy?: number;
+  startAngle?: number;
+};
 
 const SNAP = 12;
 
@@ -19,6 +30,16 @@ function snap(v: number, size: number, total: number) {
   }
   return Math.round(v);
 }
+
+/** Keeps an angle in -180..180 and snaps it to multiples of 15° when close (always with Shift). */
+function snapAngle(deg: number, force: boolean) {
+  let a = ((((deg + 180) % 360) + 360) % 360) - 180;
+  const nearest = Math.round(a / 15) * 15;
+  if (force || Math.abs(a - nearest) < 4) a = nearest;
+  return Math.round(a === -180 ? 180 : a);
+}
+
+const angleOf = (x: number, y: number, cx: number, cy: number) => (Math.atan2(y - cy, x - cx) * 180) / Math.PI;
 
 export function Canvas({ page, selectedId, dispatch }: { page: Page; selectedId: string | null; dispatch: (a: Action) => void }) {
   const scaleRef = useRef(1);
@@ -32,7 +53,15 @@ export function Canvas({ page, selectedId, dispatch }: { page: Page; selectedId:
       dispatch({ type: "select", id: el.id });
       if (el.locked) return;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      drag.current = { id: el.id, mode, startX: e.clientX, startY: e.clientY, orig: { x: el.x, y: el.y, w: el.w, h: el.h }, moved: false };
+      const d: Drag = { id: el.id, mode, startX: e.clientX, startY: e.clientY, orig: { x: el.x, y: el.y, w: el.w, h: el.h, rotation: el.rotation }, moved: false };
+      if (mode === "rotate") {
+        // The rotated box turns around its centre, so the centre of its on-screen bounds is the pivot.
+        const box = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect();
+        d.cx = box.left + box.width / 2;
+        d.cy = box.top + box.height / 2;
+        d.startAngle = angleOf(e.clientX, e.clientY, d.cx, d.cy);
+      }
+      drag.current = d;
     },
     [dispatch],
   );
@@ -43,7 +72,13 @@ export function Canvas({ page, selectedId, dispatch }: { page: Page; selectedId:
     const dx = (e.clientX - d.startX) / scaleRef.current;
     const dy = (e.clientY - d.startY) / scaleRef.current;
     if (!d.moved && Math.hypot(dx, dy) < 2) return;
-    let { x, y, w, h } = d.orig;
+    if (d.mode === "rotate") {
+      const rotation = snapAngle(d.orig.rotation + angleOf(e.clientX, e.clientY, d.cx!, d.cy!) - d.startAngle!, e.shiftKey);
+      dispatch({ type: "update-element", id: d.id, patch: { rotation }, coalesce: d.moved });
+      d.moved = true;
+      return;
+    }
+    let { x, y, w, h } = d.orig as Pick<Element, "x" | "y" | "w" | "h">;
     if (d.mode === "move") {
       x = snap(x + dx, w, CANVAS_W);
       y = snap(y + dy, h, CANVAS_H);
@@ -125,6 +160,19 @@ function CanvasItem({
             }}
           />
         ))}
+      {selected && !el.locked && (
+        <>
+          <span aria-hidden className="pointer-events-none absolute left-1/2 -top-12 h-10 w-[3px] -translate-x-1/2 bg-violet" />
+          <span
+            onPointerDown={(e) => onBegin(e, el, "rotate")}
+            title="Trascina per ruotare (Maiusc: scatti di 15°)"
+            className="absolute left-1/2 -top-[72px] grid size-8 -translate-x-1/2 place-items-center rounded-full border-[3px] border-violet bg-white text-[18px] font-bold leading-none text-violet"
+            style={{ cursor: "grab", touchAction: "none" }}
+          >
+            ↻
+          </span>
+        </>
+      )}
     </div>
   );
 }

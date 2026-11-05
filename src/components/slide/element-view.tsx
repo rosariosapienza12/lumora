@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Element, Page } from "@/lib/editor/schema";
 import { FONT_FAMILY } from "@/lib/editor/schema";
+import { isSvgShape, SVG_SHAPES } from "@/lib/editor/shapes";
 import { FitStage } from "./fit-stage";
 
 /** A flat colour, or a linear gradient when a second colour is set. */
@@ -41,6 +42,33 @@ export function ElementBody({ el }: { el: Element }) {
         </div>
       );
     case "shape":
+      if (isSvgShape(el.shape)) {
+        // The gradient id must be unique on the page: thumbnails repeat the same element.
+        const gid = `g-${el.id}-${Math.round(el.w)}`;
+        // SVG gradients go left to right; CSS angles count from "to top": turn by angle − 90.
+        return (
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" style={{ display: "block", overflow: "visible" }} aria-hidden>
+            {el.color2 && (
+              <defs>
+                <linearGradient id={gid} gradientTransform={`rotate(${(el.angle ?? 135) - 90} 0.5 0.5)`}>
+                  <stop offset="0" stopColor={el.fill} />
+                  <stop offset="1" stopColor={el.color2} />
+                </linearGradient>
+              </defs>
+            )}
+            <path
+              d={SVG_SHAPES[el.shape].d}
+              fill={el.color2 ? `url(#${gid})` : el.fill}
+              fillRule="evenodd"
+              stroke={el.stroke && el.strokeWidth ? el.stroke : undefined}
+              strokeWidth={el.stroke && el.strokeWidth ? el.strokeWidth : undefined}
+              strokeLinejoin="round"
+              // The outline keeps its thickness however the shape is stretched.
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        );
+      }
       return (
         <div
           style={{
@@ -107,6 +135,14 @@ function strokeStyle(stroke?: string, width?: number): CSSProperties {
 
 export const SHADOW = "drop-shadow(0 18px 28px rgba(0,0,0,0.35))";
 
+/** Rotation and mirroring, in that order (flipping does not change the rotation direction shown). */
+export function elementTransform(el: Element) {
+  const parts = [];
+  if (el.rotation) parts.push(`rotate(${el.rotation}deg)`);
+  if (el.flipX || el.flipY) parts.push(`scale(${el.flipX ? -1 : 1}, ${el.flipY ? -1 : 1})`);
+  return parts.length ? parts.join(" ") : undefined;
+}
+
 export function elementBox(el: Element): CSSProperties {
   return {
     position: "absolute",
@@ -114,7 +150,7 @@ export function elementBox(el: Element): CSSProperties {
     top: el.y,
     width: el.w,
     height: el.h,
-    transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+    transform: elementTransform(el),
     opacity: el.opacity,
     filter: el.shadow ? SHADOW : undefined,
   };
