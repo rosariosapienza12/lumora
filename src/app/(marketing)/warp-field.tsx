@@ -13,12 +13,15 @@ export function WarpField({
   tint,
   centerX,
   centerY,
+  lite = false,
 }: {
   velocity: MotionValue<number>;
   tint: string;
   /** Vanishing point as fractions of the canvas size. */
   centerX: number;
   centerY: number;
+  /** Phones: fewer stars at 1× pixels, about half the drawing work per frame. */
+  lite?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const tintRef = useRef(tint);
@@ -32,7 +35,7 @@ export function WarpField({
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = lite ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
     let w = 0, h = 0;
     const resize = () => {
       w = canvas.clientWidth;
@@ -45,7 +48,7 @@ export function WarpField({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const COUNT = 260;
+    const COUNT = lite ? 140 : 260;
     const stars = Array.from({ length: COUNT }, () => ({ x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: Math.random() }));
     let speed = 0;
     let raf = 0;
@@ -99,7 +102,7 @@ export function WarpField({
       ro.disconnect();
       io.disconnect();
     };
-  }, [velocity, centerX, centerY, reduce]);
+  }, [velocity, centerX, centerY, reduce, lite]);
 
   return <canvas ref={ref} aria-hidden className="absolute inset-0 h-full w-full" />;
 }

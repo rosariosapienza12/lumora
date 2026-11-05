@@ -110,6 +110,15 @@ body {
   border: 1px solid color-mix(in oklab, white 55%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 60%, transparent), 0 24px 60px -30px rgba(29, 26, 58, 0.35);
 }
+/* Touch screens: no live blur behind the menu. Over the moving star field the phone would
+   recompute it on every frame; a more opaque background reads just as well. */
+@media (pointer: coarse) {
+  .glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in oklab, var(--paper) 90%, transparent);
+  }
+}
 .glass-dark {
   background: rgba(12, 9, 34, 0.62);
   /* Opaque enough on its own: no backdrop blur (expensive over animated content). */
