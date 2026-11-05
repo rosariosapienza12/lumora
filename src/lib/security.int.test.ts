@@ -16,11 +16,12 @@ import { rateLimit } from "./rate-limit";
 import { purgeExpiredGuests } from "./guest-cleanup";
 import { newGuestEmail } from "./guest";
 import { buildTemplate } from "./editor/templates";
+import { randomToken } from "./crypto";
 import type { Prisma } from "@/generated/prisma/client";
 
 let n = 0;
 async function user(email = `user${++n}-${Date.now()}@example.com`, createdAt?: Date) {
-  return db.user.create({ data: { email, name: "Test", passwordHash: "x", kind: "STUDENT", ...(createdAt ? { createdAt } : {}) } });
+  return db.user.create({ data: { email, name: "Test", passwordHash: randomToken(), kind: "STUDENT", ...(createdAt ? { createdAt } : {}) } });
 }
 
 async function presentation(ownerId: string, data: Partial<Prisma.PresentationUncheckedCreateInput> = {}) {
@@ -112,8 +113,8 @@ describe.runIf(process.env.DATABASE_TESTS === "1")("security rules on a real dat
   it("deleting an account removes everything it owned, and unlinks the security log", async () => {
     const alice = await user();
     await presentation(alice.id);
-    await db.asset.create({ data: { id: "a".repeat(32), ownerId: alice.id, mime: "image/png", size: 10, data: Buffer.from("png") } });
-    await db.session.create({ data: { id: "s".repeat(64), userId: alice.id, expiresAt: new Date(Date.now() + 60_000) } });
+    await db.asset.create({ data: { id: randomToken(16).replace(/[^a-z0-9]/gi, "0").slice(0, 32).padEnd(32, "0"), ownerId: alice.id, mime: "image/png", size: 10, data: Buffer.from("png") } });
+    await db.session.create({ data: { id: randomToken(32), userId: alice.id, expiresAt: new Date(Date.now() + 60_000) } });
     await issueEmailToken(alice.id, "VERIFY_EMAIL");
     await db.auditLog.create({ data: { action: "account.deleted", userId: alice.id } });
     expect(await storageUsed(alice.id)).toBeGreaterThan(10);
