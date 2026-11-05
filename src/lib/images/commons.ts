@@ -52,13 +52,14 @@ export function plainText(html: unknown, max = 80): string {
   if (typeof html !== "string") return "";
   const text = html
     .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0*39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Math.min(Number(n), 0x10ffff)))
+    // One pass over all entities, so "&amp;lt;" becomes "&lt;" and is never decoded twice.
+    .replace(/&(nbsp|amp|quot|apos|lt|gt|#\d{1,7});/g, (_, name: string) => {
+      if (name.startsWith("#")) {
+        const code = Number(name.slice(1));
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : " ";
+      }
+      return ({ nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">" } as Record<string, string>)[name];
+    })
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
