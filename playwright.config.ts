@@ -13,10 +13,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
-  use: { baseURL: "http://localhost:3000", trace: "retain-on-failure" },
+  // PW_CHANNEL=msedge (or chrome) runs the tests in an installed browser instead of the downloaded one.
+  use: { baseURL: "http://localhost:3000", trace: "retain-on-failure", ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}) },
   projects: [
-    { name: "computer", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "telefono", use: { ...devices["Pixel 7"] } },
+    // Signs in once and saves the session: Lumora blocks repeated sign-ins, as it should.
+    { name: "accesso", testMatch: /auth\.setup\.ts/ },
+    { name: "computer", dependencies: ["accesso"], use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "telefono", dependencies: ["accesso"], use: { ...devices["Pixel 7"] } },
   ],
   webServer: { command: "npm run dev", url: "http://localhost:3000", reuseExistingServer: true, timeout: 180_000 },
 });

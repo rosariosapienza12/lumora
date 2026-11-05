@@ -167,7 +167,7 @@ export function Editor(props: {
           onChange={(e) => setTitle(e.target.value)}
           className="order-last w-full min-w-0 rounded-lg bg-transparent px-2 py-1 font-display text-lg font-semibold outline-none hover:bg-mist focus:bg-mist sm:order-none sm:w-auto sm:flex-1"
         />
-        <span className="hidden text-sm text-ink-soft sm:inline" aria-live="polite">
+        <span className="text-xs text-ink-soft sm:text-sm" aria-live="polite">
           {status === "saved" ? "Salvato" : status === "saving" ? "Salvataggio…" : status === "dirty" ? "Modifiche non salvate" : `Errore: ${error}`}
         </span>
         <div className="ml-auto flex items-center gap-1 sm:ml-0">
@@ -259,11 +259,11 @@ export function Editor(props: {
               </button>
               ),
             )}
+            <button onClick={() => setFindingPhoto(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper">
+              <span aria-hidden className="text-violet">✿</span>
+              Foto gratis
+            </button>
           </div>
-          <button onClick={() => setFindingPhoto(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper">
-            <span aria-hidden className="text-violet">✿</span>
-            Foto gratis
-          </button>
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" tabIndex={-1} onChange={upload} />
           <AnimatePresence>
             {hint && (
