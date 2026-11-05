@@ -48,6 +48,12 @@ Security was designed around the OWASP Top 10 and checked with a local penetrati
 | Content | every document validated with a Zod schema; `https` links only |
 | Privacy | self-service account deletion (password and explicit confirmation, cascade delete of presentations, images and sessions); privacy, terms and cookie pages; only technical cookies |
 
+These rules are checked by automated tests on a real PostgreSQL database
+([`src/lib/security.int.test.ts`](src/lib/security.int.test.ts), run in CI on every push):
+no access to another user's presentations, no private, deleted or note-revealing public pages,
+single-use email tokens stored as hashes, rate limits, and complete deletion of accounts and
+expired guests. Each test was checked to fail when its rule is removed.
+
 Details and vulnerability reporting in [SECURITY.md](SECURITY.md).
 
 ## Tech stack
@@ -119,7 +125,7 @@ real client address.
 | `npm run build` | production build |
 | `npm run vercel-build` | database migrations + production build (used by Vercel) |
 | `npm start` | starts the production build |
-| `npm test` | unit tests |
+| `npm test` | unit tests; with `DATABASE_TESTS=1` also the security tests on a real PostgreSQL |
 | `npm run lint` | code linting |
 | `npm run typecheck` | type checking |
 
