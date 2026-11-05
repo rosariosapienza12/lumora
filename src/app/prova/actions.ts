@@ -10,7 +10,8 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { buildTemplate } from "@/lib/editor/templates";
 import { DEFAULT_THEME } from "@/lib/editor/themes";
-import { GUEST_DOMAIN, guestCutoff, newGuestEmail } from "@/lib/guest";
+import { newGuestEmail } from "@/lib/guest";
+import { purgeExpiredGuests } from "@/lib/guest-cleanup";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Short enough to fit the cover on one line, like the template names.
@@ -25,7 +26,7 @@ export async function startGuestAction() {
   if (!allowed) redirect("/accedi?ospite=limite");
 
   // Housekeeping: guests older than a day go away, with their presentations, images and sessions (cascade).
-  await db.user.deleteMany({ where: { email: { endsWith: `@${GUEST_DOMAIN}` }, createdAt: { lt: guestCutoff() } } });
+  await purgeExpiredGuests();
 
   const user = await db.user.create({
     data: {

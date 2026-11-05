@@ -12,6 +12,21 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # A throwaway PostgreSQL for the security tests (src/lib/security.int.test.ts).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # Placeholder values: the build validates configuration but never connects.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/lumora
@@ -28,6 +43,13 @@ jobs:
         run: echo "ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" >> "$GITHUB_ENV"
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      - name: Prepare the test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/test
+      - name: Tests, including the security tests on PostgreSQL
+        run: npm test
+        env:
+          DATABASE_TESTS: "1"
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build

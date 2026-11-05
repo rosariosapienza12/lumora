@@ -4,7 +4,11 @@
 
 > The app's interface is in Italian.
 
+**Live demo: [lumora-rosario.vercel.app](https://lumora-rosario.vercel.app)**. Press "Prova subito, senza account" to open the editor without signing up.
+
 ![Lumora homepage: a solar system where every planet is a feature](docs/screenshots/home.png)
+
+![The tour through the planets: one world per feature, with a shooting star, meteors, an alien ship and a comet between stops](docs/screenshots/tour.gif)
 
 ## Features
 
@@ -14,12 +18,12 @@
 - **Interactivity**: glowing hotspots, pop-up details, content to reveal, buttons that jump to other pages (quizzes and branching stories), external links with confirmation.
 - **Animations and transitions**: 7 entrance effects, 4 looping effects, and fade, slide, zoom and 3D-rotate transitions between pages. All of them respect `prefers-reduced-motion`.
 - **Present and share**: presenter mode with notes and timer, auto-advance, PDF export, public link with optional password, QR code and embed code.
-- **The homepage is a product in itself**: an interactive solar system where every planet is a feature. The planets are rendered pixel by pixel on a canvas from procedural textures generated in Web Workers; the gas giants are modeled on Jupiter and Saturn (irregular bands, vortices, a great storm, limb darkening).
-- **Zib, the assistant**: an alien in its spaceship that answers in real time (streaming) through Claude. On request ("make me a presentation about photosynthesis") it picks a template and theme, proposes an outline and creates the presentation after a preview. Without an API key it falls back to a built-in engine that understands questions without accents and with typos, answers several topics at once, follows the conversation and suggests follow-up questions.
+- **The homepage is a product in itself**: an interactive solar system where every planet is a feature. The planets are rendered pixel by pixel on a canvas from procedural textures generated in Web Workers; the gas giants are modeled on Jupiter and Saturn (irregular bands, vortices, a great storm, limb darkening). Between stops a small show plays around the planet (a shooting star, a meteor shower, an alien ship circling it, a comet, a satellite); one wheel or swipe gesture moves exactly one planet, and on phones the tour drops the costly effects to stay smooth.
+- **Zib, the assistant**: an alien in its spaceship (drag it anywhere on screen) that answers in real time (streaming) through Claude. On request ("make me a presentation about photosynthesis") it picks a template and theme, proposes an outline and creates the presentation after a preview. Without an API key it falls back to a built-in engine that understands questions without accents and with typos, answers several topics at once, follows the conversation and suggests follow-up questions.
 
 | Tour of the features | Zib assistant |
 | --- | --- |
-| ![The Templates planet page](docs/screenshots/tour.png) | ![Chat with the Zib assistant](docs/screenshots/zib.png) |
+| ![A stop of the planet tour, with an alien ship circling the planet](docs/screenshots/tour.png) | ![Chat with the Zib assistant](docs/screenshots/zib.png) |
 
 | Dashboard | Editor |
 | --- | --- |
@@ -28,6 +32,10 @@
 | Themes and templates | Page layouts |
 | --- | --- |
 | ![Choosing a theme and template](docs/screenshots/temi.png) | ![Page layout menu](docs/screenshots/layout.png) |
+
+On phones: the homepage, the planet tour and the editor, which stacks into one column.
+
+![Lumora on a phone: homepage, planet tour and editor](docs/screenshots/mobile.png)
 
 ## Security
 
@@ -47,6 +55,12 @@ Security was designed around the OWASP Top 10 and checked with a local penetrati
 | Abuse | rate limits on login, saves, publishing, uploads and the assistant; per-user storage quotas |
 | Content | every document validated with a Zod schema; `https` links only |
 | Privacy | self-service account deletion (password and explicit confirmation, cascade delete of presentations, images and sessions); privacy, terms and cookie pages; only technical cookies |
+
+These rules are checked by automated tests on a real PostgreSQL database
+([`src/lib/security.int.test.ts`](src/lib/security.int.test.ts), run in CI on every push):
+no access to another user's presentations, no private, deleted or note-revealing public pages,
+single-use email tokens stored as hashes, rate limits, and complete deletion of accounts and
+expired guests. Each test was checked to fail when its rule is removed.
 
 Details and vulnerability reporting in [SECURITY.md](SECURITY.md).
 
@@ -119,7 +133,7 @@ real client address.
 | `npm run build` | production build |
 | `npm run vercel-build` | database migrations + production build (used by Vercel) |
 | `npm start` | starts the production build |
-| `npm test` | unit tests |
+| `npm test` | unit tests; with `DATABASE_TESTS=1` also the security tests on a real PostgreSQL |
 | `npm run lint` | code linting |
 | `npm run typecheck` | type checking |
 
