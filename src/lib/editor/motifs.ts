@@ -187,11 +187,12 @@ const isCoverPage = (page: Page, t: Theme) => page.background.toLowerCase() === 
  * Adds the topic decorations to a page, at free spots in the margins. `seed`
  * (usually the page number) varies which drawings and spots each page gets.
  */
-export function decoratePage(page: Page, motif: MotifId, t: Theme, seed = 0): Page {
-  const m = MOTIFS[motif];
+export function decoratePage(page: Page, motif: MotifId | SvgShape[], t: Theme, seed = 0, density = 2): Page {
+  const m = { decor: Array.isArray(motif) ? motif : MOTIFS[motif].decor };
+  if (!m.decor.length || density <= 0) return page;
   const cover = isCoverPage(page, t);
   const blocked = obstacles(page);
-  const max = cover ? 4 : 3;
+  const max = [0, 1, cover ? 4 : 3, cover ? 6 : 5][density] ?? 3;
   const decor: Element[] = [];
 
   for (let k = 0; k < SPOTS.length && decor.length < max; k++) {
@@ -233,12 +234,20 @@ export const stripDecor = (page: Page): Page => ({ ...page, elements: page.eleme
  * Sets (or with `undefined` removes) the topic of a presentation: old
  * decorations go, new ones are placed on every page in the current theme.
  */
-export function applyMotif(doc: PresentationDoc, motif: MotifId | undefined): PresentationDoc {
+export function applyMotif(doc: PresentationDoc, motif: MotifId | undefined, opts: { decor?: SvgShape[] | null; density?: number } = {}): PresentationDoc {
   const t = getTheme(doc.settings?.theme);
+  // Drawings chosen by hand or by Zib win over the preset topic; `null` clears them.
+  const decor = opts.decor === null ? undefined : (opts.decor ?? (motif === doc.settings?.motif ? doc.settings?.decor : undefined));
+  const density = opts.density ?? doc.settings?.decorDensity ?? 2;
+  const drawings = decor?.length ? decor : motif;
   const pages = doc.pages.map((p, i) => {
     const clean = stripDecor(p);
-    return motif ? decoratePage(clean, motif, t, i) : clean;
+    return drawings ? decoratePage(clean, drawings, t, i, density) : clean;
   });
-  const settings = { autoAdvance: doc.settings?.autoAdvance ?? 0, ...(doc.settings?.theme ? { theme: doc.settings.theme } : {}), ...(motif ? { motif } : {}) };
+  const rest = { ...doc.settings };
+  delete rest.motif;
+  delete rest.decor;
+  delete rest.decorDensity;
+  const settings = { ...rest, autoAdvance: doc.settings?.autoAdvance ?? 0, ...(motif ? { motif } : {}), ...(decor?.length ? { decor } : {}), ...(density !== 2 ? { decorDensity: density } : {}) };
   return { ...doc, pages, settings };
 }

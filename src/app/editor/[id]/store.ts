@@ -4,7 +4,7 @@ import { buildLayout, type LayoutId } from "@/lib/editor/layouts";
 import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
 import { applyMotif, decoratePage, type MotifId } from "@/lib/editor/motifs";
-import { photoElement, type FreePhoto } from "@/lib/editor/photos";
+import { photoElement, withCreditsPage, type FreePhoto } from "@/lib/editor/photos";
 
 export type EditorState = {
   doc: PresentationDoc;
@@ -244,13 +244,13 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "set-photo": {
       const target = page.elements.find((e) => e.id === action.targetId && (e.type === "image" || (e.type === "shape" && e.photoSlot)));
       if (target) {
-        return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) })), { selectedId: target.id });
+        return commit(state, withCreditsPage(mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) }))), { selectedId: target.id });
       }
       const el = photoElement(createElement("image"), action.photo);
       // Keep the photo's own proportions inside a 640-wide box.
       el.h = Math.round(Math.min(640, (640 * action.photo.height) / action.photo.width));
       el.y = Math.round((CANVAS_H - el.h) / 2);
-      return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
+      return commit(state, withCreditsPage(mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] }))), { selectedId: el.id });
     }
     case "undo": {
       const prev = state.past.at(-1);
