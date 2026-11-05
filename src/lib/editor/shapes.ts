@@ -62,17 +62,56 @@ export const SVG_SHAPES = {
   palette: { label: "Tavolozza", d: "M50 4 C78 4 98 22 98 46 C98 62 86 66 76 62 C66 58 58 64 62 76 C66 90 58 98 46 98 C20 98 2 78 2 52 C2 24 22 4 50 4 Z M21 34 A7 7 0 1 0 35 34 A7 7 0 1 0 21 34 Z M43 24 A7 7 0 1 0 57 24 A7 7 0 1 0 43 24 Z M65 32 A7 7 0 1 0 79 32 A7 7 0 1 0 65 32 Z M17 60 A7 7 0 1 0 31 60 A7 7 0 1 0 17 60 Z" },
   cup: { label: "Tazza", d: "M14 30 H74 V62 Q74 90 44 90 Q14 90 14 62 Z M76 38 Q96 38 96 54 Q96 70 76 70 V62 Q88 62 88 54 Q88 46 76 46 Z M30 6 Q38 14 30 22 L34 24 Q42 14 34 4 Z M50 6 Q58 14 50 22 L54 24 Q62 14 54 4 Z" },
   pin: { label: "Segnaposto", d: "M50 98 C50 98 14 60 14 38 C14 18 30 4 50 4 C70 4 86 18 86 38 C86 60 50 98 50 98 Z M36 38 A14 14 0 1 0 64 38 A14 14 0 1 0 36 38 Z" },
-} as const;
+  circuit: {
+    label: "Circuito",
+    d: "M14 14 H54 V34 H78 V40 H48 V20 H14 Z M2 17 A6 6 0 1 0 14 17 A6 6 0 1 0 2 17 Z M5 17 A3 3 0 1 1 11 17 A3 3 0 1 1 5 17 Z M79 37 A7 7 0 1 0 93 37 A7 7 0 1 0 79 37 Z M82.5 37 A3.5 3.5 0 1 1 89.5 37 A3.5 3.5 0 1 1 82.5 37 Z M14 60 H34 V80 H72 V86 H28 V66 H14 Z M2 63 A6 6 0 1 0 14 63 A6 6 0 1 0 2 63 Z M5 63 A3 3 0 1 1 11 63 A3 3 0 1 1 5 63 Z M73 83 A7 7 0 1 0 87 83 A7 7 0 1 0 73 83 Z M76.5 83 A3.5 3.5 0 1 1 83.5 83 A3.5 3.5 0 1 1 76.5 83 Z M60 50 H86 V72 H60 Z M66 56 V66 H80 V56 Z",
+  },
+  fish: { label: "Pesce", d: "M8 50 C20 28 50 22 70 40 L92 24 L88 50 L92 76 L70 60 C50 78 20 72 8 50 Z M24 46 A4 4 0 1 0 32 46 A4 4 0 1 0 24 46 Z" },
+  anchor: {
+    label: "Àncora",
+    d: "M40 14 A10 10 0 1 0 60 14 A10 10 0 1 0 40 14 Z M45 14 A5 5 0 1 1 55 14 A5 5 0 1 1 45 14 Z M46 24 H54 V94 H46 Z M30 32 H46 V38 H30 Z M54 32 H70 V38 H54 Z M10 60 L18 56 C22 74 32 84 46 86 V93 C28 91 14 78 10 60 Z M90 60 L82 56 C78 74 68 84 54 86 V93 C72 91 86 78 90 60 Z",
+  },
+  atom: {
+    label: "Atomo",
+    rule: "nonzero",
+    d: "M96 50 A46 16 0 1 1 4 50 A46 16 0 1 1 96 50 Z M90 50 A40 9 0 1 0 10 50 A40 9 0 1 0 90 50 Z M73 89.84 A46 16 60 1 1 27 10.16 A46 16 60 1 1 73 89.84 Z M70 84.64 A40 9 60 1 0 30 15.36 A40 9 60 1 0 70 84.64 Z M27 89.84 A46 16 120 1 1 73 10.16 A46 16 120 1 1 27 89.84 Z M30 84.64 A40 9 120 1 0 70 15.36 A40 9 120 1 0 30 84.64 Z M41 50 A9 9 0 1 0 59 50 A9 9 0 1 0 41 50 Z",
+  },
+  column: { label: "Colonna", d: "M8 4 H92 V12 H8 Z M18 14 H82 V20 H18 Z M22 22 H30 V84 H22 Z M34 22 H42 V84 H34 Z M46 22 H54 V84 H46 Z M58 22 H66 V84 H58 Z M70 22 H78 V84 H70 Z M18 86 H82 V91 H18 Z M10 93 H90 V98 H10 Z" },
+  crown: { label: "Corona", d: "M6 30 L28 52 L50 14 L72 52 L94 30 L86 80 H14 Z M14 86 H86 V96 H14 Z" },
+  brush: { label: "Pennello", d: "M88 4 L96 12 L52 60 L42 50 Z M38 54 L48 64 C46 80 30 94 6 94 C14 86 12 70 22 62 C28 58 34 56 38 54 Z" },
+  headphones: { label: "Cuffie", d: "M10 54 C10 24 28 8 50 8 C72 8 90 24 90 54 L82 54 C82 30 68 16 50 16 C32 16 18 30 18 54 Z M8 56 H28 V94 H8 Z M72 56 H92 V94 H72 Z" },
+  mic: { label: "Microfono", d: "M38 20 A12 12 0 0 1 62 20 V46 A12 12 0 0 1 38 46 Z M24 44 H30 C30 58 40 66 50 66 C60 66 70 58 70 44 H76 C76 62 64 72 53 73 V88 H68 V94 H32 V88 H47 V73 C36 72 24 62 24 44 Z" },
+  briefcase: { label: "Valigetta", d: "M6 30 H94 V90 H6 Z M44 50 H56 V60 H44 Z M36 14 H64 V28 H58 V20 H42 V28 H36 Z" },
+  pencil: { label: "Matita", d: "M2 50 L22 34 V66 Z M26 34 H76 V66 H26 Z M80 34 H88 Q98 34 98 50 Q98 66 88 66 H80 Z" },
+  ball: { label: "Pallone", d: "M4 50 A46 46 0 1 0 96 50 A46 46 0 1 0 4 50 Z M50 34 L65 45 L59 63 L41 63 L35 45 Z M50 8 L60 15 L50 22 L40 15 Z M88 44 L82 56 L74 48 L80 38 Z M12 44 L18 56 L26 48 L20 38 Z M30 80 L42 80 L40 90 L30 88 Z M70 80 L58 80 L60 90 L70 88 Z" },
+  apple: { label: "Mela", d: "M50 30 C40 22 14 22 12 50 C10 76 30 96 44 92 C48 90 52 90 56 92 C70 96 90 76 88 50 C86 22 60 22 50 30 Z M52 26 C52 16 58 8 68 6 C68 16 62 24 52 26 Z" },
+  cutlery: { label: "Posate", d: "M22 4 H26 V28 H30 V4 H34 V28 H38 V4 H42 V34 Q42 44 35 46 V96 H29 V46 Q22 44 22 34 Z M62 4 C76 10 78 40 74 56 H68 V96 H62 Z" },
+  plane: { label: "Aereo", d: "M50 2 C54 2 56 8 56 14 V38 L96 60 V68 L56 56 V80 L68 90 V96 L50 90 L32 96 V90 L44 80 V56 L4 68 V60 L44 38 V14 C44 8 46 2 50 2 Z" },
+  suitcase: { label: "Valigia", d: "M8 28 H92 V92 H8 Z M26 36 H32 V84 H26 Z M68 36 H74 V84 H68 Z M36 12 H64 V26 H58 V18 H42 V26 H36 Z" },
+  pulse: { label: "Battito", d: "M2 46 H28 L38 14 L50 70 L60 34 L67 46 H98 V54 H63 L60 48 L50 86 L38 32 L33 54 H2 Z" },
+  pill: { label: "Pillola", d: "M20 36 H48 V64 H20 A14 14 0 0 1 20 36 Z M52 36 H80 A14 14 0 0 1 80 64 H52 Z" },
+} as const satisfies Record<string, { label: string; d: string; rule?: "nonzero" | "evenodd" }>;
 
 export type SvgShape = keyof typeof SVG_SHAPES;
 export const SVG_SHAPE_IDS = Object.keys(SVG_SHAPES) as SvgShape[];
 
-export const SHAPE_IDS = ["rect", "ellipse", ...SVG_SHAPE_IDS] as ["rect", "ellipse", ...SvgShape[]];
-export type ShapeId = "rect" | "ellipse" | SvgShape;
+/** Fill rule of a drawing: holes are cut with "evenodd" unless a drawing needs overlapping parts. */
+export const fillRule = (s: SvgShape): "nonzero" | "evenodd" => {
+  const def = SVG_SHAPES[s];
+  return "rule" in def ? def.rule : "evenodd";
+};
+
+/**
+ * "arc" is a ring drawn only for a share of its length (the element's `progress`, 0-100):
+ * the percentage layouts use it. Like rect and ellipse it is drawn in code, not from a path.
+ */
+export const SHAPE_IDS = ["rect", "ellipse", "arc", ...SVG_SHAPE_IDS] as ["rect", "ellipse", "arc", ...SvgShape[]];
+export type ShapeId = "rect" | "ellipse" | "arc" | SvgShape;
 
 export const SHAPE_LABELS: Record<ShapeId, string> = {
   rect: "Rettangolo",
   ellipse: "Ellisse",
+  arc: "Arco percentuale",
   ...(Object.fromEntries(SVG_SHAPE_IDS.map((k) => [k, SVG_SHAPES[k].label])) as Record<SvgShape, string>),
 };
 

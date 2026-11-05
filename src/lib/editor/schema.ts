@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { THEME_IDS } from "./themes";
 import { SHAPE_IDS } from "./shapes";
+import { MOTIF_IDS } from "./motif-ids";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -150,6 +151,8 @@ const base = {
   /** Mirror the element horizontally / vertically. */
   flipX: z.boolean().optional(),
   flipY: z.boolean().optional(),
+  /** Topic decoration added by Lumora (leaves, chips...): replaced when the topic changes. */
+  decor: z.boolean().optional(),
 };
 
 /** Optional second colour and direction: turns a flat colour into a gradient. */
@@ -185,6 +188,10 @@ const shapeEl = z.object({
   shape: z.enum(SHAPE_IDS),
   fill: color,
   radius: z.number().min(0).max(800),
+  /** Space reserved for a photo: the editor and "con immagini" put a real photo in its place. */
+  photoSlot: z.boolean().optional(),
+  /** Share of the "arc" shape that is drawn, 0-100. */
+  progress: z.number().min(0).max(100).optional(),
   ...stroke,
   ...gradient,
 });
@@ -196,6 +203,10 @@ const imageEl = z.object({
   alt: plainText(300),
   fit: z.enum(["cover", "contain"]),
   radius: z.number().min(0).max(800),
+  /** Author and licence of a free photo (Wikimedia Commons), shown on the photo. */
+  credit: plainText(300).optional(),
+  /** The photo's page on Wikimedia Commons, with the full licence. */
+  creditUrl: httpsUrl.optional(),
   ...stroke,
 });
 
@@ -235,6 +246,8 @@ export const settings = z.object({
   autoAdvance: z.number().int().min(0).max(300),
   /** Visual theme the presentation was built with (used to restyle it). */
   theme: z.enum(THEME_IDS).optional(),
+  /** Topic of the presentation: decides the decorations at the page margins. */
+  motif: z.enum(MOTIF_IDS).optional(),
 });
 
 export const documentSchema = z

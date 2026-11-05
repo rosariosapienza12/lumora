@@ -110,6 +110,63 @@ export const THEMES = [
     palette: { coverBg: "#2b1b12", coverTitle: "#f6d55c", coverSub: "#f3e3c3", contentBg: "#f3e3c3", contentAlt: "#fbf3e0", title: "#2b1b12", text: "#4a3526", muted: "#7a5f4a", card: "#e8cfa0", accent: "#e07a2f", accent2: "#3caea3", onAccent: "#ffffff", ok: "#3caea3", ko: "#c8553d" },
     fonts: { title: "retro", body: "vintage" },
   },
+  // Themes made for a topic (see motifs.ts); like the others, they work for anything.
+  {
+    id: "laboratorio",
+    name: "Laboratorio",
+    mood: "Bianco da laboratorio, verde acqua e corallo: esperimenti e scoperte.",
+    palette: { coverBg: "#0e3b43", coverBg2: "#12606b", coverTitle: "#ffffff", coverSub: "#b7ece6", contentBg: "#f5fbfa", contentAlt: "#ffffff", title: "#0e3b43", text: "#2c4f55", muted: "#66868a", card: "#d4efeb", accent: "#0f8a80", accent2: "#ff7a5c", onAccent: "#fffffe", ok: "#1b9e5a", ko: "#d64545" },
+    fonts: { title: "geometric", body: "clean" },
+  },
+  {
+    id: "pergamena",
+    name: "Pergamena",
+    mood: "Carta antica, rosso porpora e oro: storia e grandi racconti.",
+    palette: { coverBg: "#3b1f1a", coverTitle: "#f4e6c8", coverSub: "#d8c29a", contentBg: "#f6ecd6", contentAlt: "#fbf5e6", title: "#3b1f1a", text: "#4e3a2c", muted: "#85705a", card: "#ead8b2", accent: "#8c2f2b", accent2: "#c99a3c", onAccent: "#fffaf0", ok: "#4f7a3a", ko: "#a1342e" },
+    fonts: { title: "classic", body: "book" },
+  },
+  {
+    id: "galleria",
+    name: "Galleria",
+    mood: "Pareti bianche, rosso e blu primari: arte e design.",
+    palette: { coverBg: "#f2efe8", coverTitle: "#141414", coverSub: "#5d5a55", contentBg: "#fbfaf7", contentAlt: "#ffffff", title: "#141414", text: "#34322e", muted: "#807c75", card: "#e9e4d9", accent: "#d93425", accent2: "#2d4bd8", onAccent: "#fffffe", ok: "#2f8f4e", ko: "#c62828" },
+    fonts: { title: "poster", body: "clean" },
+  },
+  {
+    id: "palco",
+    name: "Palco",
+    mood: "Luci di scena viola, giallo e fucsia: musica e spettacolo.",
+    palette: { coverBg: "#1a0f2e", coverBg2: "#3b1250", coverTitle: "#ffffff", coverSub: "#e2c7ff", contentBg: "#1f1533", contentAlt: "#2a1d44", title: "#fffdf7", text: "#e6dcf5", muted: "#a998c4", card: "#3a2a5a", accent: "#ffd23f", accent2: "#ff4fa3", onAccent: "#1a0f2e", ok: "#4fe3a1", ko: "#ff6b6b" },
+    fonts: { title: "impact", body: "sans" },
+  },
+  {
+    id: "stadio",
+    name: "Stadio",
+    mood: "Verde campo e arancione: sport, squadre e sfide.",
+    palette: { coverBg: "#0c2a1f", coverBg2: "#11553a", coverTitle: "#ffffff", coverSub: "#c8f5d8", contentBg: "#f3f7f2", contentAlt: "#ffffff", title: "#0c2a1f", text: "#2b4237", muted: "#687a70", card: "#dcebdf", accent: "#e8590c", accent2: "#1db954", onAccent: "#fffffe", ok: "#1a8f47", ko: "#d93a2b" },
+    fonts: { title: "condensed", body: "modern" },
+  },
+  {
+    id: "trattoria",
+    name: "Trattoria",
+    mood: "Rosso pomodoro, crema e basilico: cibo e cucina.",
+    palette: { coverBg: "#b8322a", coverBg2: "#e0533d", coverTitle: "#fffaf2", coverSub: "#ffd9c2", contentBg: "#fff8ec", contentAlt: "#ffffff", title: "#3a1d14", text: "#57362a", muted: "#8d6c5d", card: "#f6e2c8", accent: "#c8392f", accent2: "#4c8c3c", onAccent: "#fffffe", ok: "#3f8a3a", ko: "#a8261f" },
+    fonts: { title: "slab", body: "story" },
+  },
+  {
+    id: "orizzonte",
+    name: "Orizzonte",
+    mood: "Petrolio e arancio tramonto su sabbia: viaggi e luoghi.",
+    palette: { coverBg: "#0f4c5c", coverBg2: "#16697a", coverTitle: "#ffffff", coverSub: "#fde4cf", contentBg: "#fbf6ef", contentAlt: "#ffffff", title: "#0f4c5c", text: "#33525a", muted: "#7a8b8f", card: "#f1e3cf", accent: "#d35a10", accent2: "#0f8b8d", onAccent: "#fffffe", ok: "#2a9d68", ko: "#c0392b" },
+    fonts: { title: "modern", body: "light" },
+  },
+  {
+    id: "benessere",
+    name: "Benessere",
+    mood: "Menta, azzurro e corallo tenue: salute e cura di sé.",
+    palette: { coverBg: "#e8f6f3", coverBg2: "#dceefe", coverTitle: "#134e4a", coverSub: "#3f7d76", contentBg: "#fbfefd", contentAlt: "#ffffff", title: "#0f4743", text: "#35605b", muted: "#6f8c88", card: "#d7efea", accent: "#0f8f7a", accent2: "#f06a6a", onAccent: "#fffffe", ok: "#13946f", ko: "#d9534f" },
+    fonts: { title: "rounded", body: "clean" },
+  },
 ] as const satisfies readonly Theme[];
 
 export type ThemeId = (typeof THEMES)[number]["id"];
@@ -176,5 +233,5 @@ export function applyTheme(doc: PresentationDoc, toId: ThemeId): PresentationDoc
     });
     return { ...p, background, ...gradient, elements };
   });
-  return { ...doc, pages, settings: { autoAdvance: doc.settings?.autoAdvance ?? 0, theme: to.id as ThemeId } };
+  return { ...doc, pages, settings: { ...doc.settings, autoAdvance: doc.settings?.autoAdvance ?? 0, theme: to.id as ThemeId } };
 }

@@ -26,13 +26,13 @@ export const isTemplateId = (v: unknown): v is TemplateId => TEMPLATES.some((t) 
 /** Adds a "start" button on a cover page that leads to `target`. */
 function startButton(cover: Page, target: Page, label: string, themeId: ThemeId) {
   const d = drawWith(getTheme(themeId));
-  cover.elements.push(d.button({ x: 140, y: 680, w: 360, h: 90 }, label, d.goto(target), { delay: 0.6 }));
+  cover.elements.push(d.button({ x: 120, y: 700, w: 360, h: 90 }, label, d.goto(target), { delay: 0.6 }));
 }
 
 /** Chains question pages: each one gets an "Avanti" button to the next. */
 function chain(pages: Page[], last: Page, themeId: ThemeId) {
   const d = drawWith(getTheme(themeId));
-  pages.forEach((p, i) => p.elements.push(d.button({ x: 640, y: 770, w: 320, h: 80 }, "Avanti", d.goto(pages[i + 1] ?? last), { delay: 0.8 })));
+  pages.forEach((p, i) => p.elements.push(d.button({ x: 640, y: 710, w: 320, h: 80 }, "Avanti", d.goto(pages[i + 1] ?? last), { delay: 0.8 })));
 }
 
 export function buildTemplate(id: TemplateId, title: string, themeId: ThemeId = DEFAULT_THEME): PresentationDoc {
@@ -98,8 +98,8 @@ export function buildTemplate(id: TemplateId, title: string, themeId: ThemeId = 
       a.label = "Il bosco";
       b.label = "Il mare";
       fork.elements = fork.elements.filter((e) => !(e.type === "text" && e.text.startsWith("Collega")));
-      pathA.elements.push(d.button({ x: 120, y: 760, w: 300, h: 80 }, "Continua", d.goto(endA), { delay: 0.6 }));
-      pathB.elements.push(d.button({ x: 120, y: 760, w: 300, h: 80 }, "Continua", d.goto(endB), { delay: 0.6 }));
+      pathA.elements.push(d.button({ x: 860, y: 740, w: 300, h: 80 }, "Continua", d.goto(endA), { delay: 0.6 }));
+      pathB.elements.push(d.button({ x: 860, y: 740, w: 300, h: 80 }, "Continua", d.goto(endB), { delay: 0.6 }));
       startButton(cover, fork, "Comincia", themeId);
       return doc([cover, fork, pathA, endA, pathB, endB]);
     }

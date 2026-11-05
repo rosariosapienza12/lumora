@@ -13,6 +13,7 @@ import { GuestBanner } from "@/components/guest-banner";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { ShapeMenu } from "./shape-menu";
+import { PhotoSearch } from "./photo-search";
 import { currentPage, initState, reducer } from "./store";
 import { publishAction, saveDocumentAction, unpublishAction } from "./actions";
 
@@ -50,6 +51,7 @@ export function Editor(props: {
   const clipboard = useRef<Element | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [findingPhoto, setFindingPhoto] = useState(false);
 
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,7 +65,11 @@ export function Editor(props: {
       const res = await fetch("/api/assets", { method: "POST", body });
       const data = (await res.json()) as { src?: string; error?: string };
       if (!res.ok || !data.src) return setUploadMsg(data.error ?? "Caricamento non riuscito.");
-      dispatch({ type: "add-element", kind: "image", src: data.src, alt: file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 300) });
+      const alt = file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 300);
+      // A selected photo space (or image) takes the uploaded file in its place.
+      const target = currentPage(state).elements.find((x) => x.id === state.selectedId && (x.type === "image" || (x.type === "shape" && x.photoSlot)));
+      if (target) dispatch({ type: "update-element", id: target.id, patch: { type: "image", src: data.src, alt, fit: "cover", credit: undefined, creditUrl: undefined, photoSlot: undefined, opacity: 1 } as Partial<Element> });
+      else dispatch({ type: "add-element", kind: "image", src: data.src, alt });
       setUploadMsg(null);
     } catch {
       setUploadMsg("Caricamento non riuscito: controlla la connessione.");
@@ -245,6 +251,10 @@ export function Editor(props: {
               ),
             )}
           </div>
+          <button onClick={() => setFindingPhoto(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper">
+            <span aria-hidden className="text-violet">✿</span>
+            Foto gratis
+          </button>
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" tabIndex={-1} onChange={upload} />
           <AnimatePresence>
             {hint && (
@@ -295,7 +305,7 @@ export function Editor(props: {
 
         {/* Inspector */}
         <aside className="order-3 border-t border-line bg-paper lg:order-none lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-t-0 lg:border-l" aria-label="Proprietà">
-          <Inspector doc={state.doc} page={page} el={selected} dispatch={dispatch} />
+          <Inspector doc={state.doc} page={page} el={selected} dispatch={dispatch} onFindPhoto={() => setFindingPhoto(true)} onUploadPhoto={() => fileRef.current?.click()} />
         </aside>
       </div>
 
@@ -304,6 +314,19 @@ export function Editor(props: {
           <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <Player doc={state.doc} startIndex={pageIndex} onClose={() => setPreviewing(false)} presenter />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {findingPhoto && (
+          <PhotoSearch
+            initialQuery={title === "Presentazione senza titolo" ? "" : title}
+            onClose={() => setFindingPhoto(false)}
+            onPick={(photo) => {
+              dispatch({ type: "set-photo", photo, targetId: state.selectedId });
+              setFindingPhoto(false);
+            }}
+          />
         )}
       </AnimatePresence>
 

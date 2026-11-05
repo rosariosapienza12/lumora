@@ -3,6 +3,8 @@ import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, type LayoutId } from "@/lib/editor/layouts";
 import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
+import { applyMotif, decoratePage, type MotifId } from "@/lib/editor/motifs";
+import { photoElement, type FreePhoto } from "@/lib/editor/photos";
 
 export type EditorState = {
   doc: PresentationDoc;
@@ -32,6 +34,9 @@ export type Action =
   | { type: "transition-all"; transition: Transition }
   | { type: "settings"; autoAdvance: number }
   | { type: "apply-theme"; theme: ThemeId }
+  | { type: "apply-motif"; motif: MotifId | undefined }
+  /** A free photo: replaces the selected photo space or image, otherwise it is added to the page. */
+  | { type: "set-photo"; photo: FreePhoto; targetId?: string | null }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -124,7 +129,10 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, pageId: action.pageId, selectedId: null };
     case "add-page": {
       // A layout is drawn in the presentation's theme; without one, an empty page.
-      const p = action.layout ? buildLayout(action.layout, getTheme(state.doc.settings?.theme)) : blankPage(`Pagina ${state.doc.pages.length + 1}`);
+      const theme = getTheme(state.doc.settings?.theme);
+      const motif = state.doc.settings?.motif;
+      const built = action.layout ? buildLayout(action.layout, theme, undefined, { motif }) : blankPage(`Pagina ${state.doc.pages.length + 1}`);
+      const p = action.layout && motif ? decoratePage(built, motif, theme, state.doc.pages.length) : built;
       const idx = state.doc.pages.findIndex((x) => x.id === page.id);
       const pages = [...state.doc.pages];
       pages.splice(idx + 1, 0, p);
@@ -231,6 +239,19 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return commit(state, { ...state.doc, settings: { ...state.doc.settings, autoAdvance: Math.max(0, Math.min(300, Math.round(action.autoAdvance))) } });
     case "apply-theme":
       return commit(state, applyTheme(state.doc, action.theme));
+    case "apply-motif":
+      return commit(state, applyMotif(state.doc, action.motif), { selectedId: null });
+    case "set-photo": {
+      const target = page.elements.find((e) => e.id === action.targetId && (e.type === "image" || (e.type === "shape" && e.photoSlot)));
+      if (target) {
+        return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) })), { selectedId: target.id });
+      }
+      const el = photoElement(createElement("image"), action.photo);
+      // Keep the photo's own proportions inside a 640-wide box.
+      el.h = Math.round(Math.min(640, (640 * action.photo.height) / action.photo.width));
+      el.y = Math.round((CANVAS_H - el.h) / 2);
+      return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
+    }
     case "undo": {
       const prev = state.past.at(-1);
       if (!prev) return state;

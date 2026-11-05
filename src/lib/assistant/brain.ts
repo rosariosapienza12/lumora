@@ -1,5 +1,6 @@
-import { LAYOUT_GROUPS } from "@/lib/editor/layouts";
+import { LAYOUT_GROUPS, LAYOUT_NAMES } from "@/lib/editor/layouts";
 import { normalize, parseDeck, planDeck, serializeDeck, type DeckSpec } from "@/lib/editor/deck";
+import { MOTIFS } from "@/lib/editor/motifs";
 import { getTheme, THEMES, type ThemeId } from "@/lib/editor/themes";
 
 /**
@@ -98,6 +99,13 @@ const INTENTS: Intent[] = [
     next: ["Come sposto o allineo gli elementi?", "Come aggiungo una linea del tempo?"],
   },
   {
+    id: "argomenti",
+    keys: ["decoraz", "argoment", "illustraz", "margini", "disegni", "foglie"],
+    answer: `Ogni presentazione può avere un argomento: ${Object.values(MOTIFS).map((m) => m.name.toLowerCase()).join(", ")}. L'argomento mette piccole illustrazioni ai margini delle pagine (foglie e palazzi per l'ambiente, chip e circuiti per la tecnologia…) senza coprire i contenuti, e suggerisce il tema più adatto.`,
+    more: "Lo cambi nell'editor: clic su un punto vuoto della pagina, sezione Argomento. Le decorazioni sono bloccate per non spostarle per sbaglio; se ne vuoi togliere una, selezionala e sbloccala.",
+    next: ["Fammi una presentazione sul riciclo", "Come aggiungo le immagini?"],
+  },
+  {
     id: "modelli",
     keys: ["modell", "template", "nuova presentazione", "iniziare", "inizio", "partire", "prima presentazione"],
     answer: "Dalla dashboard premi Nuova presentazione: scegli un tema e uno degli 8 modelli (Vuota, Lezione interattiva, Pitch, Quiz, Relazione, Storia a bivi, Portfolio, Workshop). Oppure dimmi l'argomento e preparo io la scaletta!",
@@ -155,9 +163,9 @@ const INTENTS: Intent[] = [
   },
   {
     id: "immagini",
-    keys: ["immagin", "foto", "carica", "upload", "png", "jpg"],
-    answer: "Nell'editor premi Immagine e scegli un file dal computer: PNG, JPEG, WebP o GIF fino a 4 MB. Poi aggiungi il testo alternativo, che descrive l'immagine a chi usa un lettore di schermo.",
-    more: "Se il caricamento non va controlla formato e dimensione. Puoi arrotondare gli angoli, aggiungere una cornice e scegliere se l'immagine riempie il riquadro o si vede intera.",
+    keys: ["immagin", "foto", "carica", "upload", "png", "jpg", "wikimedia"],
+    answer: "Nell'editor hai due strade:\n• Foto gratis: cerchi una parola e scegli tra foto libere di Wikimedia Commons, con autore e licenza già scritti sulla foto\n• Immagine: carichi un file dal computer (PNG, JPEG, WebP o GIF fino a 4 MB)\nSe selezioni uno spazio per foto di un layout, la foto prende il suo posto e la sua misura.",
+    more: "Ricorda il testo alternativo, che descrive l'immagine a chi usa un lettore di schermo. Il credito dell'autore sulle foto gratis serve per la licenza: lascialo visibile. Se mi chiedi una presentazione \"con immagini\" le foto le scelgo io.",
     action: "[[/crea/contenuti|Aggiungi immagini]]",
   },
   {
@@ -267,28 +275,31 @@ function themeIn(text: string): ThemeId | undefined {
 
 /** The topic after "su", "sul", "riguardo"…, as the user wrote it. */
 function topicOf(text: string): string | null {
-  const m = text.match(/\b(?:su(?:l|lla|llo|ll'|i|gli|lle)?|riguardo(?: a| al| alla)?|a tema|dal titolo|intitolat[ao]|sull')\s*(.{2,80}?)\s*(?:\b(?:in stile|con (?:il )?tema|tema)\b.*)?[?.!]*$/i);
+  const m = text.match(/\b(?:su(?:l|lla|llo|ll'|i|gli|lle)?|riguardo(?: a| al| alla)?|a tema|dal titolo|intitolat[ao]|sull')\s*(.{2,80}?)\s*(?:\b(?:in stile|con (?:il )?tema|tema|con (?:le |delle |tante )?(?:immagini|foto\w*))\b.*)?[?.!]*$/i);
   return m ? m[1].replace(/^["'«]+|["'»]+$/g, "").trim() : null;
 }
-
-const LAYOUT_NAMES = Object.fromEntries(LAYOUT_GROUPS.flatMap((g) => g.layouts.map((l) => [l.id, l.name])));
 
 function deckAnswer(spec: DeckSpec, kindName: string) {
   const theme = getTheme(spec.theme);
   const lines = spec.pages.map((p) => `• ${LAYOUT_NAMES[p.layout]}: ${p.heading}`);
   const otherTheme = THEMES.find((t) => t.id !== spec.theme && t.id !== "notte")?.name ?? "Minimal";
+  const topic = spec.motif ? ` Argomento ${MOTIFS[spec.motif].name.toLowerCase()}: ai margini delle pagine metto le sue illustrazioni.` : "";
+  const photos = spec.photos ? ` Gli spazi per le foto li riempio con foto libere di Wikimedia Commons su "${spec.photos}", con autore e licenza.` : "";
   return [
-    `Ecco la mia proposta per "${spec.title}": ${kindName} di ${spec.pages.length} pagine nel tema ${theme.name} (${theme.mood.charAt(0).toLowerCase()}${theme.mood.slice(1, -1)}).`,
+    `Ecco la mia proposta per "${spec.title}": ${kindName} di ${spec.pages.length} pagine nel tema ${theme.name} (${theme.mood.charAt(0).toLowerCase()}${theme.mood.slice(1, -1)}).${topic}${photos}`,
     ...lines,
     "",
     "Premi il pulsante per vederla in anteprima e crearla: poi testi e immagini sono tuoi.",
     "",
     `[[crea|${serializeDeck(spec)}]]`,
-    `{{Cambia tema in ${otherTheme}}}`,
+    spec.photos ? `{{Cambia tema in ${otherTheme}}}` : "{{Rifalla con le immagini}}",
     `{{Fammi invece un quiz su ${spec.title.toLowerCase()}}}`,
-    "{{Come aggiungo le immagini?}}",
+    spec.photos ? "{{Come cambio una foto?}}" : `{{Cambia tema in ${otherTheme}}}`,
   ].join("\n");
 }
+
+/** "con immagini", "con le foto", "aggiungi le immagini". */
+const WANTS_PHOTOS = /\b(?:con|aggiungi|metti|mettici|rifalla)\b[^.?!]{0,20}\b(?:immagini|foto|fotografie)\b/;
 
 /** The outline proposed in the latest assistant message, if any. */
 function lastDeck(history: ChatMessage[]): DeckSpec | null {
@@ -305,9 +316,15 @@ function tryDeck(question: string, history: ChatMessage[]): string | null {
   const theme = themeIn(question);
   const previous = lastDeck(history);
 
+  const photos = WANTS_PHOTOS.test(n);
   // "cambia tema in Neon" right after a proposal: same outline, new theme.
   if (previous && theme && /\b(cambia|metti|usa|prova|tema|stile|invece)\b/.test(n) && !topicOf(question)) {
     return deckAnswer({ ...previous, theme }, "la stessa presentazione");
+  }
+  // "rifalla con le immagini" right after a proposal: same topic and theme, with photo pages.
+  if (previous && photos && !topicOf(question)) {
+    const spec = planDeck(previous.title, { theme: previous.theme, motif: previous.motif ?? null, photos: true });
+    return deckAnswer(spec, "la stessa presentazione, con le foto");
   }
   if (!(CREATE.test(n) && DECK_WORDS.test(n))) return null;
 
@@ -316,7 +333,7 @@ function tryDeck(question: string, history: ChatMessage[]): string | null {
   if (!topic) {
     return "Volentieri! Su che argomento? Scrivimi per esempio \"fammi una presentazione sulla fotosintesi\" o \"crea un pitch per la mia app\": scelgo io tema, modello e scaletta.\n{{Fammi una presentazione sul sistema solare}}\n{{Crea un pitch per la mia startup}}";
   }
-  const spec = planDeck(topic, { ...forced, ...(theme ? { theme } : {}) });
+  const spec = planDeck(topic, { ...forced, ...(theme ? { theme } : {}), photos });
   const kind = forced.kind ?? (spec.pages.some((p) => p.layout === "bivio") ? "storia" : spec.pages[1]?.layout === "titolo-testo" && spec.pages[2]?.heading === "La nostra soluzione" ? "pitch" : undefined);
   return deckAnswer(spec, kind ? KIND_NAMES[kind] : "una presentazione");
 }
