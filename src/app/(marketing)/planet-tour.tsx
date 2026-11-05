@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from "react";
 import {
   AnimatePresence,
   motion,
@@ -54,35 +54,89 @@ function useViewport() {
 /** Touch screens: finger scrolling has its own momentum, and fighting it feels like the page froze. */
 const isTouch = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
-/** After scrolling stops inside the tour, glide to the nearest planet. */
+/**
+ * Phones and tablets get a lighter tour: no animated blur filters and fewer stars. Blur over a
+ * moving canvas is recomputed on every frame and was the main cause of stutter on phones.
+ */
+function useLite() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia("(pointer: coarse)");
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    isTouch,
+    () => false,
+  );
+}
+
+/**
+ * After scrolling stops inside the tour, glide to a planet, so the tour never rests between two.
+ * With a mouse: the nearest one. On touch screens it waits until the finger is lifted and the
+ * momentum is over (snapping earlier fights the finger), then follows the swipe: a short swipe
+ * towards the next planet is enough to get there.
+ */
 function useSnapToStops(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
   useEffect(() => {
-    // Only with a mouse or trackpad: on touch screens snapping interrupts the finger's momentum.
-    if (isTouch()) return;
+    const touch = isTouch();
     let timer = 0;
     let snapping = false;
-    const onScroll = () => {
-      if (snapping) return;
+    let touching = false;
+    let lastY = window.scrollY;
+    let direction = 0;
+
+    const settle = () => {
+      const el = sectionRef.current;
+      if (!el || touching || snapping) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const range = el.offsetHeight - window.innerHeight;
+      const into = window.scrollY - top;
+      // Only inside the tour (plus a small margin at both ends).
+      if (into < -window.innerHeight * 0.3 || into > range + window.innerHeight * 0.3) return;
+      const step = range / (N - 1);
+      const at = into / step;
+      const base = Math.floor(at);
+      const part = at - base;
+      let index = Math.round(at);
+      if (touch && part > 0.02 && part < 0.98) {
+        // Follow the swipe: 15% of the way is enough to move on (or back).
+        index = direction > 0 ? (part > 0.15 ? base + 1 : base) : part < 0.85 ? base : base + 1;
+      }
+      index = Math.max(0, Math.min(N - 1, index));
+      const target = top + index * step;
+      if (Math.abs(target - window.scrollY) < 2) return;
+      snapping = true;
+      window.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
+      window.setTimeout(() => (snapping = false), 700);
+    };
+    const later = () => {
       clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        const el = sectionRef.current;
-        if (!el) return;
-        const top = el.getBoundingClientRect().top + window.scrollY;
-        const range = el.offsetHeight - window.innerHeight;
-        const into = window.scrollY - top;
-        // Only inside the tour (plus a small margin at both ends).
-        if (into < -window.innerHeight * 0.3 || into > range + window.innerHeight * 0.3) return;
-        const step = range / (N - 1);
-        const target = top + Math.max(0, Math.min(N - 1, Math.round(into / step))) * step;
-        if (Math.abs(target - window.scrollY) < 2) return;
-        snapping = true;
-        window.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
-        window.setTimeout(() => (snapping = false), 700);
-      }, 140);
+      // On touch screens a longer pause, so momentum scrolling has really ended.
+      timer = window.setTimeout(settle, touch ? 180 : 140);
+    };
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y !== lastY) direction = Math.sign(y - lastY);
+      lastY = y;
+      if (!snapping) later();
+    };
+    const onTouchStart = () => {
+      touching = true;
+      clearTimeout(timer);
+    };
+    const onTouchEnd = () => {
+      touching = false;
+      later();
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
       clearTimeout(timer);
     };
   }, [sectionRef, reduce]);
@@ -139,6 +193,7 @@ export function PlanetTour() {
   const [active, setActive] = useState(0);
   const vp = useViewport();
   const reduce = useReducedMotion();
+  const lite = useLite();
   useSnapToStops(sectionRef, reduce);
   useWheelSteps(sectionRef, reduce);
 
@@ -184,14 +239,15 @@ export function PlanetTour() {
             animate={{
               background: `radial-gradient(55% 70% at ${stageX * 100}% ${stageY * 100}%, ${feature.glow}38, transparent 70%), radial-gradient(40% 50% at 90% 10%, ${feature.glow}1f, transparent 70%)`,
             }}
-            transition={{ duration: reduce ? 0 : 1.2, ease: "easeOut" }}
+            // Phones: instant change, a full-screen gradient repainted for 1.2 s costs too much there.
+            transition={{ duration: reduce || lite ? 0 : 1.2, ease: "easeOut" }}
           />
-          <WarpField velocity={velocity} tint={feature.glow} centerX={stageX} centerY={stageY} />
+          <WarpField velocity={velocity} tint={feature.glow} centerX={stageX} centerY={stageY} lite={lite} />
 
           <div className="absolute inset-0" aria-hidden>
             {FEATURES.map((f, i) =>
               Math.abs(i - active) <= 1 ? (
-                <TourPlanet key={f.id} feature={f} index={i} still={i !== active} position={position} size={planetSize} stageX={stageX} stageY={stageY} vp={vp} mobile={mobile} />
+                <TourPlanet key={f.id} feature={f} index={i} still={i !== active} position={position} size={planetSize} stageX={stageX} stageY={stageY} vp={vp} mobile={mobile} lite={lite} />
               ) : null,
             )}
           </div>
@@ -202,7 +258,7 @@ export function PlanetTour() {
 
           <div className={`absolute z-10 ${mobile ? "inset-x-5 bottom-[4.5rem] top-[47%]" : "right-28 top-1/2 w-[38%] max-w-md -translate-y-1/2"}`}>
             <AnimatePresence mode="wait">
-              <FeatureCopy key={feature.id} feature={feature} reduce={Boolean(reduce)} mobile={mobile} />
+              <FeatureCopy key={feature.id} feature={feature} reduce={Boolean(reduce)} mobile={mobile} lite={lite} />
             </AnimatePresence>
           </div>
 
@@ -229,7 +285,9 @@ export function PlanetTour() {
                   }}
                 />
                 <span className={`transition-opacity duration-300 ${i === active ? "opacity-100" : "opacity-55 group-hover:opacity-100"}`}>
-                  <PlanetCanvas kind={f.kind} size={f.kind === "gold" ? 14 : 18} spin={20 + i * 4} className="block" />
+                  {/* Phones: still miniatures. Eight tiny spheres redrawn pixel by pixel on every frame were
+                      the heaviest part of the tour there, and at this size the spin is not visible. */}
+                  <PlanetCanvas kind={f.kind} size={f.kind === "gold" ? 14 : 18} spin={20 + i * 4} still={lite} className="block" />
                 </span>
                 {!mobile && (
                   <span className="pointer-events-none absolute right-11 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-xs text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
@@ -278,6 +336,7 @@ function TourPlanet({
   stageY,
   vp,
   mobile,
+  lite,
 }: {
   feature: Feature;
   index: number;
@@ -288,6 +347,7 @@ function TourPlanet({
   stageY: number;
   vp: { w: number; h: number };
   mobile: boolean;
+  lite: boolean;
 }) {
   const offset = useTransform(position, (p) => index - p);
   const arrive = (o: number) => Math.max(0, Math.min(1, o / 0.5));
@@ -304,7 +364,8 @@ function TourPlanet({
   return (
     <motion.div
       className="absolute"
-      style={{ left: `${stageX * 100}%`, top: `${stageY * 100}%`, x, y, scale, opacity, rotate, filter, translateX: "-50%", translateY: "-50%" }}
+      // Phones: no blur filter while the planet flies past (opacity and scale carry the motion).
+      style={{ left: `${stageX * 100}%`, top: `${stageY * 100}%`, x, y, scale, opacity, rotate, filter: lite ? undefined : filter, translateX: "-50%", translateY: "-50%" }}
     >
       <div className="absolute inset-[-45%] rounded-full" style={{ background: `radial-gradient(circle, ${feature.glow}55 0%, ${feature.glow}18 35%, transparent 62%)` }} />
       <div className="tour-orbit absolute inset-[-22%] rounded-full border" style={{ borderColor: `${feature.glow}30` }}>
@@ -316,11 +377,13 @@ function TourPlanet({
   );
 }
 
-function FeatureCopy({ feature, reduce, mobile }: { feature: Feature; reduce: boolean; mobile: boolean }) {
+function FeatureCopy({ feature, reduce, mobile, lite }: { feature: Feature; reduce: boolean; mobile: boolean; lite: boolean }) {
+  // Phones: the text slides and fades without the blur, which is expensive to animate there.
+  const blur = (px: number) => (lite ? {} : { filter: `blur(${px}px)` });
   const item = {
-    hidden: { opacity: 0, y: 22, filter: "blur(8px)" },
-    shown: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: reduce ? 0 : 0.55, ease: EASE } },
-    gone: { opacity: 0, y: -14, filter: "blur(6px)", transition: { duration: reduce ? 0 : 0.22 } },
+    hidden: { opacity: 0, y: 22, ...blur(8) },
+    shown: { opacity: 1, y: 0, ...blur(0), transition: { duration: reduce ? 0 : 0.55, ease: EASE } },
+    gone: { opacity: 0, y: -14, ...blur(6), transition: { duration: reduce ? 0 : 0.22 } },
   };
   return (
     <motion.div
