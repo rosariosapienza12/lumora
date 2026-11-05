@@ -128,5 +128,7 @@ describe("Wikimedia Commons answers", () => {
 
   it("turns HTML into plain text", () => {
     expect(plainText("<b>Anna</b> &lt;script&gt;")).toBe("Anna <script>");
+    // Decoded once only: an escaped entity stays an entity.
+    expect(plainText("Tom &amp;lt;b&amp;gt; &#39;x&#39;")).toBe("Tom &lt;b&gt; 'x'");
   });
 });
