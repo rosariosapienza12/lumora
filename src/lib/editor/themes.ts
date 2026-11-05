@@ -1,4 +1,5 @@
 import type { Element, FontId, Page, PresentationDoc } from "./schema";
+import type { SvgShape } from "./shapes";
 
 /**
  * Visual themes: a palette of named roles and a pair of typefaces. Templates
@@ -56,11 +57,18 @@ export const STYLE_NAMES: Record<StyleKind, string> = {
 export const PATTERNS = ["none", "dots", "grid", "lines", "stars", "grain"] as const;
 export type Pattern = (typeof PATTERNS)[number];
 
-export type Theme = { id: string; name: string; mood: string; kind: StyleKind; pattern?: Pattern; palette: Palette; fonts: { title: FontId; body: FontId } };
+/**
+ * Two themes may share an art direction, but never a composition: `variant`
+ * moves the cover text (0 left, 1 right with mirrored art, 2 centred, 3 large at
+ * the bottom) and `signature` is the theme's own drawing, used big on covers
+ * and small as list marks.
+ */
+export type Theme = { id: string; name: string; mood: string; kind: StyleKind; variant: 0 | 1 | 2 | 3; signature: SvgShape; pattern?: Pattern; palette: Palette; fonts: { title: FontId; body: FontId } };
 
 export const THEMES = [
   {
     id: "notte",
+    variant: 0, signature: "planet",
     kind: "orbita", pattern: "stars",
     name: "Notte stellata",
     mood: "Viola profondo e ambra: il tema di Lumora.",
@@ -69,6 +77,7 @@ export const THEMES = [
   },
   {
     id: "minimal",
+    variant: 0, signature: "diamond",
     kind: "editoriale",
     name: "Minimal",
     mood: "Bianco, nero e un solo colore: lascia parlare i contenuti.",
@@ -77,6 +86,7 @@ export const THEMES = [
   },
   {
     id: "aziendale",
+    variant: 0, signature: "chart",
     kind: "brutale", pattern: "grid",
     name: "Aziendale",
     mood: "Blu affidabile e verde crescita, per pitch e riunioni.",
@@ -85,6 +95,7 @@ export const THEMES = [
   },
   {
     id: "accademico",
+    variant: 2, signature: "book",
     kind: "editoriale", pattern: "lines",
     name: "Accademico",
     mood: "Blu notte, carta avorio e titoli con le grazie: tesi e relazioni.",
@@ -93,6 +104,7 @@ export const THEMES = [
   },
   {
     id: "lavagna",
+    variant: 0, signature: "pencil",
     kind: "gesso",
     name: "Lavagna",
     mood: "Verde lavagna e gesso colorato: lezioni in classe.",
@@ -101,6 +113,7 @@ export const THEMES = [
   },
   {
     id: "natura",
+    variant: 0, signature: "leaf",
     kind: "organico",
     name: "Foresta",
     mood: "Verdi di bosco e luce calda: ambiente e scienze.",
@@ -109,6 +122,7 @@ export const THEMES = [
   },
   {
     id: "oceano",
+    variant: 1, signature: "wave",
     kind: "orbita", pattern: "dots",
     name: "Oceano",
     mood: "Blu profondi e turchese: chiaro e rilassante.",
@@ -117,6 +131,7 @@ export const THEMES = [
   },
   {
     id: "tramonto",
+    variant: 0, signature: "sun",
     kind: "collage", pattern: "grain",
     name: "Tramonto",
     mood: "Corallo e magenta in sfumatura: energia e creatività.",
@@ -125,6 +140,7 @@ export const THEMES = [
   },
   {
     id: "pastello",
+    variant: 1, signature: "cloud",
     kind: "organico", pattern: "dots",
     name: "Pastello",
     mood: "Lilla e menta, forme morbide: delicato e amichevole.",
@@ -133,6 +149,7 @@ export const THEMES = [
   },
   {
     id: "neon",
+    variant: 0, signature: "circuit",
     kind: "neon", pattern: "grid",
     name: "Neon",
     mood: "Notte elettrica, fucsia e ciano: tecnologia e gaming.",
@@ -141,6 +158,7 @@ export const THEMES = [
   },
   {
     id: "retro",
+    variant: 1, signature: "burst",
     kind: "collage", pattern: "grain",
     name: "Retrò",
     mood: "Senape, cacao e turchese anni Settanta.",
@@ -150,6 +168,7 @@ export const THEMES = [
   // Themes made for a topic (see motifs.ts); like the others, they work for anything.
   {
     id: "laboratorio",
+    variant: 3, signature: "atom",
     kind: "editoriale", pattern: "grid",
     name: "Laboratorio",
     mood: "Bianco da laboratorio, verde acqua e corallo: esperimenti e scoperte.",
@@ -158,6 +177,7 @@ export const THEMES = [
   },
   {
     id: "pergamena",
+    variant: 2, signature: "crown",
     kind: "collage", pattern: "grain",
     name: "Pergamena",
     mood: "Carta antica, rosso porpora e oro: storia e grandi racconti.",
@@ -166,6 +186,7 @@ export const THEMES = [
   },
   {
     id: "galleria",
+    variant: 1, signature: "frame",
     kind: "brutale",
     name: "Galleria",
     mood: "Pareti bianche, rosso e blu primari: arte e design.",
@@ -174,6 +195,7 @@ export const THEMES = [
   },
   {
     id: "palco",
+    variant: 1, signature: "note",
     kind: "neon", pattern: "stars",
     name: "Palco",
     mood: "Luci di scena viola, giallo e fucsia: musica e spettacolo.",
@@ -182,6 +204,7 @@ export const THEMES = [
   },
   {
     id: "stadio",
+    variant: 3, signature: "ball",
     kind: "brutale", pattern: "lines",
     name: "Stadio",
     mood: "Verde campo e arancione: sport, squadre e sfide.",
@@ -190,6 +213,7 @@ export const THEMES = [
   },
   {
     id: "trattoria",
+    variant: 3, signature: "apple",
     kind: "collage", pattern: "grain",
     name: "Trattoria",
     mood: "Rosso pomodoro, crema e basilico: cibo e cucina.",
@@ -198,6 +222,7 @@ export const THEMES = [
   },
   {
     id: "orizzonte",
+    variant: 2, signature: "mountain",
     kind: "organico", pattern: "dots",
     name: "Orizzonte",
     mood: "Petrolio e arancio tramonto su sabbia: viaggi e luoghi.",
@@ -206,6 +231,7 @@ export const THEMES = [
   },
   {
     id: "benessere",
+    variant: 3, signature: "heart",
     kind: "organico",
     name: "Benessere",
     mood: "Menta, azzurro e corallo tenue: salute e cura di sé.",

@@ -200,13 +200,13 @@ export function drawWith(t: Theme) {
       case "brutale":
         return shape({ x, y, w: 30, h: 30 }, fill, { radius: 0, stroke: p.title, strokeWidth: 4, delay, enter: "pop" });
       case "collage":
-        return figure({ x, y, w: 34, h: 34 }, "star", fill, { delay, enter: "pop", rotation: tilt(i) * 8 });
+        return figure({ x, y, w: 34, h: 34 }, t.signature, fill, { delay, enter: "pop", rotation: tilt(i) * 8 });
       case "gesso":
         return figure({ x, y, w: 40, h: 28 }, "arrow", p.accent, { delay, enter: "slide-left" });
       case "neon":
         return shape({ x, y: y + 6, w: 30, h: 8 }, fill, { radius: 4, delay, enter: "slide-left", shadow: true });
       case "organico":
-        return figure({ x, y, w: 34, h: 34 }, "leaf", fill, { delay, enter: "pop" });
+        return figure({ x, y, w: 34, h: 34 }, t.signature, fill, { delay, enter: "pop" });
       default:
         return shape({ x, y, w: 26, h: 26 }, fill, { ellipse: true, delay, enter: "pop" });
     }
@@ -277,12 +277,32 @@ function heroArt(d: Draw, role: HeroRole): Element[] {
   }
 }
 
-function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: string; subtitle: string; number?: string }): Page {
+/** The same element seen in a mirror (for the right-handed cover variant). */
+function mirror(e: Element): Element {
+  const flip = e.type === "shape" && e.shape !== "rect" && e.shape !== "ellipse" ? { flipX: !e.flipX } : {};
+  return { ...e, x: 1600 - e.x - e.w, rotation: -e.rotation, ...flip };
+}
+
+/**
+ * Cover, section and closing. The art direction draws the background art;
+ * the theme's variant decides where the words go (so two themes with the same
+ * direction never look alike) and its signature drawing signs the page.
+ */
+function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: string; subtitle: string; number?: string }, t: Theme): Page {
   const { p } = d;
   const editorial = d.kind === "editoriale";
   const heading = c.heading || defaults.heading;
   const sub = c.subtitle || defaults.subtitle;
-  const els = heroArt(d, role);
+  const v = role === "closing" ? (t.variant === 1 ? 1 : 0) : t.variant;
+  // Centred words need the art in the corners; words at the bottom push the art up.
+  let art = heroArt(d, v === 2 && role !== "closing" ? "closing" : role);
+  if (v === 1) art = art.map(mirror);
+  if (v === 3) art = art.map((e) => ({ ...e, y: e.y - 220 }));
+  const sigBox = role === "closing" || v === 2 ? { x: 1300, y: 640, w: 200, h: 200 } : v === 1 ? { x: 70, y: 610, w: 240, h: 240 } : v === 3 ? { x: 1220, y: 560, w: 260, h: 260 } : { x: 1250, y: 600, w: 240, h: 240 };
+  const sig = d.figure(sigBox, t.signature, p.accent2, { opacity: 0.9, enter: "pop", delay: 0.45, rotation: v === 1 ? 8 : -8 });
+  const els = [...art, sig];
+  const side = v === 1 ? { x: 600, align: "right" as const } : { x: 120, align: "left" as const };
+
   if (role === "closing") {
     els.push(
       d.text({ x: 200, y: 250, w: 1200, h: 220 }, heading, { size: editorial ? 150 : 124, title: true, color: p.coverTitle, align: "center", enter: "pop", lineHeight: 1 }),
@@ -292,22 +312,24 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
   }
   if (role === "section") {
     const n = defaults.number ?? "01";
+    const align = v === 2 ? ("center" as const) : side.align;
+    const x = v === 2 ? 200 : side.x;
+    const w = v === 2 ? 1200 : 880;
     els.push(
-      d.text({ x: 120, y: editorial ? 130 : 200, w: 400, h: 200 }, n, { size: editorial ? 190 : 150, title: true, color: p.accent2, fit: false, enter: "blur", lineHeight: 1 }),
-      d.text({ x: 120, y: 420, w: 940, h: 240 }, heading, { size: 88, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.15, lineHeight: 1.04 }),
-      d.text({ x: 120, y: 680, w: 900, h: 100 }, sub, { size: 32, color: p.coverSub, delay: 0.35 }),
+      d.text({ x, y: editorial ? 130 : 180, w, h: 220 }, n, { size: editorial ? 190 : 150, title: true, color: p.accent2, fit: false, enter: "blur", lineHeight: 1, align }),
+      d.text({ x, y: 420, w, h: 240 }, heading, { size: 88, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.15, lineHeight: 1.04, align }),
+      d.text({ x, y: 680, w, h: 100 }, sub, { size: 32, color: p.coverSub, delay: 0.35, align }),
     );
     return d.page(heading.slice(0, 80) || "Sezione", p.coverBg, els, "slide-left", true);
   }
+  const box =
+    v === 2 ? { x: 200, y: 240, w: 1200, h: 330 }
+    : v === 3 ? { x: 120, y: 400, w: 960, h: 300 }
+    : editorial ? { x: side.x, y: 260, w: 880, h: 380 }
+    : { x: side.x, y: 260, w: 880, h: 330 };
   els.push(
-    d.text(editorial ? { x: 120, y: 260, w: 1360, h: 380 } : { x: 120, y: 260, w: 900, h: 330 }, heading, {
-      size: editorial ? 140 : 104,
-      title: true,
-      color: p.coverTitle,
-      enter: "slide-up",
-      lineHeight: editorial ? 0.98 : 1.02,
-    }),
-    d.text({ x: 120, y: editorial ? 670 : 620, w: 860, h: 110 }, sub, { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.35 }),
+    d.text(box, heading, { size: editorial || v === 3 ? 132 : 104, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: editorial ? 0.98 : 1.02, align: v === 2 ? "center" : side.align }),
+    d.text({ x: v === 2 ? 270 : box.x, y: v === 3 ? 720 : box.y + box.h + 20, w: v === 2 ? 1060 : 860, h: 90 }, sub, { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.35, align: v === 2 ? "center" : side.align }),
   );
   return d.page("Copertina", p.coverBg, els, "fade", true);
 }
@@ -402,11 +424,11 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
     /* ---------- Structure ---------- */
 
     case "copertina":
-      return hero(d, "cover", c, { heading: "Il titolo della presentazione", subtitle: "Una riga che dice di cosa parlerai" });
+      return hero(d, "cover", c, { heading: "Il titolo della presentazione", subtitle: "Una riga che dice di cosa parlerai" }, t);
     case "sezione":
-      return hero(d, "section", c, { heading: "Titolo della sezione", subtitle: "Una frase che introduce questa parte", number: c.stats?.[0]?.value });
+      return hero(d, "section", c, { heading: "Titolo della sezione", subtitle: "Una frase che introduce questa parte", number: c.stats?.[0]?.value }, t);
     case "chiusura":
-      return hero(d, "closing", c, { heading: "Grazie!", subtitle: "Domande? Parliamone insieme." });
+      return hero(d, "closing", c, { heading: "Grazie!", subtitle: "Domande? Parliamone insieme." }, t);
 
     case "agenda": {
       const n = count(c, 4, 6);
