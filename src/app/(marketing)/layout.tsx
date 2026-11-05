@@ -19,7 +19,7 @@ export default function MarketingLayout({ children }: LayoutProps<"/">) {
         ))}
       </div>
 
-      <header className="sticky top-3 z-40 mx-auto mt-3 w-[calc(100%-1.5rem)] max-w-7xl">
+      <header className="site-header sticky top-3 z-40 mx-auto mt-3 w-[calc(100%-1.5rem)] max-w-7xl">
         <div className="glass flex items-center gap-6 rounded-full px-4 py-2.5 sm:px-5">
           <Logo />
           <nav className="hidden gap-1 text-sm font-medium sm:flex">

@@ -70,119 +70,194 @@ function useLite() {
   );
 }
 
+/** Length of the glide from one planet to the next: the same whatever the gesture. */
+const GLIDE_MS = 900;
 /**
- * After scrolling stops inside the tour, glide to a planet, so the tour never rests between two.
- * With a mouse: the nearest one. On touch screens it waits until the finger is lifted and the
- * momentum is over (snapping earlier fights the finger), then follows the swipe: a short swipe
- * towards the next planet is enough to get there.
+ * Pause (ms) without wheel events that ends a gesture. A trackpad flick, with its inertia, sends
+ * wheel events for a second or more: all of it is one gesture, so one planet. Spinning the wheel
+ * hard never races through the tour; the next planet needs a new gesture.
  */
-function useSnapToStops(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
-  useEffect(() => {
-    const touch = isTouch();
-    let timer = 0;
-    let snapping = false;
-    let touching = false;
-    let lastY = window.scrollY;
-    let direction = 0;
+const WHEEL_GESTURE_GAP = 200;
+/** A swipe shorter than this (px) is a tap, not a move. */
+const SWIPE_MIN = 30;
 
-    const settle = () => {
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+/**
+ * The tour behaves like pages. While it fills the screen, every gesture (a swipe, a wheel
+ * notch, a trackpad flick) plays the same glide to exactly the next or previous planet: the
+ * speed of the gesture and the phone's momentum no longer decide where it stops. At the first
+ * and last planet the page scrolls on normally. If native scrolling ever leaves the tour between
+ * two planets (arriving from above, the scrollbar, the keyboard), it settles on the nearest one.
+ * Returns `glideTo(index)` for the planet buttons.
+ */
+function usePagedTour(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
+  const glideRef = useRef<(index: number) => void>(() => {});
+
+  useEffect(() => {
+    let animating = false;
+    let frame = 0;
+    let settleTimer = 0;
+    let lastWheel = 0;
+    let touchY: number | null = null;
+    let touchOwned = false;
+    let touchDir = 0;
+
+    const geometry = () => {
       const el = sectionRef.current;
-      if (!el || touching || snapping) return;
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      const range = el.offsetHeight - window.innerHeight;
-      const into = window.scrollY - top;
-      // Only inside the tour (plus a small margin at both ends).
-      if (into < -window.innerHeight * 0.3 || into > range + window.innerHeight * 0.3) return;
-      const step = range / (N - 1);
-      const at = into / step;
-      const base = Math.floor(at);
-      const part = at - base;
-      let index = Math.round(at);
-      if (touch && part > 0.02 && part < 0.98) {
-        // Follow the swipe: 15% of the way is enough to move on (or back).
-        index = direction > 0 ? (part > 0.15 ? base + 1 : base) : part < 0.85 ? base : base + 1;
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      const top = rect.top + window.scrollY;
+      const step = (el.offsetHeight - window.innerHeight) / (N - 1);
+      const at = (window.scrollY - top) / step;
+      // Pinned: the stage fills the screen.
+      const pinned = rect.top <= 1 && rect.bottom >= window.innerHeight - 1;
+      return { top, step, at, pinned, current: Math.max(0, Math.min(N - 1, Math.round(at))) };
+    };
+
+    const glideTo = (index: number) => {
+      const g = geometry();
+      if (!g) return;
+      const target = g.top + Math.max(0, Math.min(N - 1, index)) * g.step;
+      cancelAnimationFrame(frame);
+      if (reduce) {
+        window.scrollTo(0, target);
+        return;
       }
-      index = Math.max(0, Math.min(N - 1, index));
-      const target = top + index * step;
-      if (Math.abs(target - window.scrollY) < 2) return;
-      snapping = true;
-      window.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
-      window.setTimeout(() => (snapping = false), 700);
+      const from = window.scrollY;
+      const start = performance.now();
+      animating = true;
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / GLIDE_MS);
+        window.scrollTo(0, from + (target - from) * easeInOut(t));
+        if (t < 1) frame = requestAnimationFrame(tick);
+        else animating = false;
+      };
+      frame = requestAnimationFrame(tick);
     };
-    const later = () => {
-      clearTimeout(timer);
-      // On touch screens a longer pause, so momentum scrolling has really ended.
-      timer = window.setTimeout(settle, touch ? 180 : 140);
+    glideRef.current = glideTo;
+
+    /** The planet to go to for a gesture in direction `dir`, or null to let the page scroll. */
+    const nextFor = (dir: number) => {
+      const g = geometry();
+      if (!g || !g.pinned || !dir) return null;
+      const next = g.current + dir;
+      return next < 0 || next > N - 1 ? null : next;
     };
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return; // ctrl + wheel is the browser zoom
+      const dir = Math.sign(e.deltaY);
+      const g = geometry();
+      if (!g?.pinned) return;
+      const now = performance.now();
+      const newGesture = now - lastWheel > WHEEL_GESTURE_GAP;
+      lastWheel = now;
+      if (animating) {
+        e.preventDefault(); // the glide is running: the rest of the gesture is swallowed
+        return;
+      }
+      const next = nextFor(dir);
+      if (next === null) return; // first or last planet: normal scrolling
+      e.preventDefault();
+      // One gesture, one planet.
+      if (!newGesture) return;
+      glideTo(next);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? null;
+      touchOwned = false;
+      touchDir = 0;
+      clearTimeout(settleTimer);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchY === null) return;
+      const y = e.touches[0]?.clientY ?? touchY;
+      const dir = Math.sign(touchY - y); // finger up = forward
+      if (animating) {
+        e.preventDefault();
+        touchOwned = true;
+        return;
+      }
+      if (!touchOwned) {
+        if (!dir || nextFor(dir) === null) return; // not in the tour, or leaving it: native scroll
+        touchOwned = true;
+        touchDir = dir;
+      }
+      e.preventDefault(); // the page does not move: the glide will
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const startY = touchY;
+      touchY = null;
+      if (!touchOwned || startY === null || animating) return;
+      const endY = e.changedTouches[0]?.clientY ?? startY;
+      if (Math.abs(startY - endY) < SWIPE_MIN) return;
+      const next = nextFor(touchDir);
+      if (next !== null) glideTo(next);
+    };
+
+    // Safety net: if native scrolling stops between two planets, settle on the nearest.
     const onScroll = () => {
-      const y = window.scrollY;
-      if (y !== lastY) direction = Math.sign(y - lastY);
-      lastY = y;
-      if (!snapping) later();
+      if (animating) return;
+      clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        if (animating || touchY !== null) return;
+        const g = geometry();
+        if (!g) return;
+        const range = g.step * (N - 1);
+        const into = window.scrollY - g.top;
+        if (into < -window.innerHeight * 0.3 || into > range + window.innerHeight * 0.3) return;
+        if (Math.abs(g.at - Math.round(g.at)) * g.step < 2) return;
+        glideTo(Math.round(g.at));
+      }, 160);
     };
-    const onTouchStart = () => {
-      touching = true;
-      clearTimeout(timer);
-    };
-    const onTouchEnd = () => {
-      touching = false;
-      later();
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
+
+    window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
+    // passive: false, otherwise preventDefault cannot stop the native scroll.
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", onTouchEnd);
-      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+      clearTimeout(settleTimer);
     };
   }, [sectionRef, reduce]);
+
+  return (index: number) => glideRef.current(index);
 }
 
-/** Pause (ms) without wheel events that ends a gesture: a trackpad flick sends dozens of small events. */
-const WHEEL_GESTURE_GAP = 200;
-/** Minimum time between two jumps, so the glide to a planet always completes. */
-const WHEEL_MIN_INTERVAL = 650;
-
 /**
- * Mouse wheel and trackpad: every gesture moves exactly one planet forward or back, however
- * small or long, so the tour never rests between two worlds. At the first and last planet the page
- * scrolls on normally. Touch screens keep their native scrolling.
+ * While the tour fills the screen the site header slides away, so it never covers the top of
+ * the planet; it comes back as soon as the tour is left.
  */
-function useWheelSteps(sectionRef: RefObject<HTMLElement | null>, reduce: boolean | null) {
+function useHideHeaderInTour(sectionRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
-    if (isTouch()) return;
-    let lastEvent = 0;
-    let lastJump = -Infinity;
-    const onWheel = (e: WheelEvent) => {
+    const root = document.documentElement;
+    const update = () => {
       const el = sectionRef.current;
-      const dir = Math.sign(e.deltaY);
-      if (!el || !dir || e.ctrlKey) return; // ctrl + wheel is the browser zoom
+      if (!el) return;
       const rect = el.getBoundingClientRect();
-      // Only while the tour fills the screen.
-      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) return;
-      const step = (el.offsetHeight - window.innerHeight) / (N - 1);
-      const current = Math.max(0, Math.min(N - 1, Math.round(-rect.top / step)));
-      const next = current + dir;
-      if (next < 0 || next > N - 1) return; // leaving the tour: normal scrolling
-
-      e.preventDefault();
-      const now = performance.now();
-      const newGesture = now - lastEvent > WHEEL_GESTURE_GAP;
-      lastEvent = now;
-      // One gesture, one planet: the rest of a flick (and its inertia) is swallowed.
-      if (!newGesture || now - lastJump < WHEEL_MIN_INTERVAL) return;
-      lastJump = now;
-      const top = rect.top + window.scrollY;
-      window.scrollTo({ top: top + next * step, behavior: reduce ? "auto" : "smooth" });
+      const inside = rect.top <= window.innerHeight * 0.05 && rect.bottom >= window.innerHeight * 0.95;
+      if ((root.dataset.tour === "on") !== inside) root.dataset.tour = inside ? "on" : "off";
     };
-    // passive: false, otherwise preventDefault cannot stop the native scroll.
-    window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
-  }, [sectionRef, reduce]);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      delete root.dataset.tour;
+    };
+  }, [sectionRef]);
 }
 
 export function PlanetTour() {
@@ -194,8 +269,8 @@ export function PlanetTour() {
   const vp = useViewport();
   const reduce = useReducedMotion();
   const lite = useLite();
-  useSnapToStops(sectionRef, reduce);
-  useWheelSteps(sectionRef, reduce);
+  const glideTo = usePagedTour(sectionRef, reduce);
+  useHideHeaderInTour(sectionRef);
 
   // Prepare every world in arrival order (in workers), so planets are ready before you reach them.
   useEffect(() => {
@@ -216,12 +291,7 @@ export function PlanetTour() {
   const pad = vp.w < 640 ? 12 : 20;
   const eventStage = { cx: (vp.w - 2 * pad) * stageX, cy: (vp.h - 2 * pad) * stageY, r: planetSize / 2, mobile };
 
-  const jump = (i: number) => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo({ top: top + (i / (N - 1)) * (el.offsetHeight - window.innerHeight), behavior: reduce ? "auto" : "smooth" });
-  };
+  const jump = (i: number) => glideTo(i);
 
   return (
     <section ref={sectionRef} id="viaggio" aria-label="Le funzioni di Lumora, un pianeta alla volta" className="relative" style={{ height: `${N * 100}svh` }}>
