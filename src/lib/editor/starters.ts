@@ -93,8 +93,9 @@ export function buildStarter(id: StarterId, theme: ThemeId = DEFAULT_THEME): { t
       const notes = [
         "Saluta, presentati e spiega in una frase di cosa parlerai.",
         "Racconta un esempio concreto del problema: una persona, una situazione.",
-        "Mostra come la soluzione cambia quell'esempio.",
-        "Commenta un numero alla volta, lascia il tempo di leggerli.",
+        "Mostra come la soluzione cambia quell'esempio, con una sola promessa.",
+        "Dì il numero e poi fai silenzio per due secondi: è il messaggio.",
+        "Spiega i passaggi in ordine, uno alla volta.",
         "Spiega le prossime tappe e cosa ti serve per arrivarci.",
         "Ringrazia e invita a scriverti: lascia questa pagina visibile durante le domande.",
       ];

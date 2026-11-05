@@ -2,6 +2,7 @@ import "server-only";
 import { FEATURES } from "@/app/(marketing)/features";
 import { LAYOUT_GROUPS, LAYOUT_IDS } from "@/lib/editor/layouts";
 import { MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
+import { TEMPLATES } from "@/lib/editor/templates";
 import { THEMES } from "@/lib/editor/themes";
 
 /**
@@ -60,7 +61,7 @@ Percorsi utili:
 - Dashboard con le tue presentazioni: /dashboard. Da lì "Nuova presentazione" apre la scelta di tema e modello.
 - Temi (${THEMES.length}): ${THEMES.map((t) => t.name).join(", ")}. Si cambiano anche dopo, dall'editor: clic su un punto vuoto della pagina, sezione Tema (i colori scelti a mano restano).
 - Argomenti (${MOTIF_IDS.length}): ${MOTIF_IDS.map((id) => MOTIFS[id].name).join(", ")}. Mettono illustrazioni ai margini delle pagine senza coprire i contenuti; si cambiano dall'editor nella sezione Argomento.
-- Nuova presentazione (dashboard): "Da un argomento" scrive l'argomento e Lumora sceglie tema, decorazioni e layout, con la casella per aggiungere foto gratis; "Da un modello" parte da uno degli 8 modelli (Vuota, Lezione interattiva, Pitch, Quiz, Relazione, Storia a bivi, Portfolio, Workshop).
+- Nuova presentazione (dashboard): "Da un argomento" scrive l'argomento e Lumora sceglie tema, decorazioni e layout, con la casella per aggiungere foto gratis; "Da un modello" parte da uno dei ${TEMPLATES.length} modelli (${TEMPLATES.map((t) => `${t.name}, stile ${t.style}`).join("; ")}): ognuno ha il suo tema e contenuti d'esempio che mostrano cosa scrivere dove.
 - Layout di pagina (${LAYOUT_IDS.length}), dal pulsante "+ Nuova pagina" dell'editor: ${LAYOUT_GROUPS.flatMap((g) => g.layouts.map((l) => l.name.toLowerCase())).join(", ")}.
 - Foto: nell'editor "Foto gratis" cerca foto libere su Wikimedia Commons e le inserisce con autore e licenza; "Immagine" carica un file dal computer. Se è selezionato uno spazio per foto, la foto prende il suo posto.
 - Editor: si apre cliccando una presentazione. A sinistra le pagine, al centro la tela, a destra il pannello delle proprietà (font tra oltre 30, colori e sfumature, ombre, bordi, animazioni, interazioni).
