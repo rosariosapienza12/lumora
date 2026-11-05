@@ -47,6 +47,8 @@ type TextOpts = {
   opacity?: number;
   spacing?: number;
   rotation?: number;
+  /** Average letter width in em, for the fit: wider for big numbers and symbols. */
+  charWidth?: number;
 };
 type ShapeOpts = { ellipse?: boolean; radius?: number; enter?: EnterAnimation; delay?: number; shadow?: boolean; opacity?: number; rotation?: number; stroke?: string; strokeWidth?: number };
 
@@ -58,7 +60,7 @@ export function drawWith(t: Theme) {
   const text = (box: Box, s: string, o: TextOpts = {}): Element => {
     const lineHeight = o.lineHeight ?? (o.title ? 1.08 : 1.4);
     const max = o.size ?? 34;
-    const size = o.fit === false ? max : fitSize(s, box.w, box.h, max, Math.min(max, o.title ? 28 : 18), lineHeight, o.title ? 0.55 : 0.5);
+    const size = o.fit === false ? max : fitSize(s, box.w, box.h, max, Math.min(max, o.title ? 28 : 18), lineHeight, o.charWidth ?? (o.title ? 0.62 : 0.5));
     return {
       ...base(o.enter ?? "fade", o.delay),
       ...box,
@@ -572,7 +574,7 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
           const color = i === 1 ? p.accent2 : p.accent;
           return [
             ...(d.kind === "brutale" || d.kind === "neon" || d.kind === "collage" || d.kind === "organico" ? d.card({ x, y: 270, w: w - 50, h: 470 }, i) : [d.shape({ x, y: 290, w: w - 50, h: 6 }, color, { radius: 3, enter: "slide-left", delay: 0.15 + i * 0.2 })]),
-            d.text({ x: x + 30, y: 320, w: w - 110, h: 170 }, s.value, { size: d.kind === "editoriale" ? 150 : 128, title: true, color, enter: "pop", delay: 0.2 + i * 0.2, lineHeight: 1 }),
+            d.text({ x: x + 30, y: 320, w: w - 110, h: 170 }, s.value, { size: d.kind === "editoriale" ? 150 : 128, title: true, color, enter: "pop", delay: 0.2 + i * 0.2, lineHeight: 1, charWidth: 0.78 }),
             d.text({ x: x + 30, y: 500, w: w - 110, h: 60 }, s.label, { size: 34, title: true, weight: "600", delay: 0.3 + i * 0.2 }),
             d.text({ x: x + 30, y: 566, w: w - 110, h: 150 }, s.text ?? "", { size: 26, color: p.muted, delay: 0.35 + i * 0.2 }),
           ];
@@ -587,7 +589,7 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
         ...d.heading(H("Un dato in un colpo d'occhio")),
         d.figure({ x: 160, y: 240, w: 540, h: 540 }, "ring", d.kind === "neon" ? p.contentAlt : p.card, { enter: "zoom" }),
         { ...d.figure({ x: 160, y: 240, w: 540, h: 540 }, "arc", p.accent, { enter: "zoom", delay: 0.2, shadow: d.kind === "neon" }), progress: pct } as Element,
-        d.text({ x: 210, y: 430, w: 440, h: 150 }, s.value, { size: 128, title: true, color: p.accent, align: "center", enter: "pop", delay: 0.4, lineHeight: 1 }),
+        d.text({ x: 210, y: 430, w: 440, h: 150 }, s.value, { size: 128, title: true, color: p.accent, align: "center", enter: "pop", delay: 0.4, lineHeight: 1, charWidth: 0.78 }),
         d.text({ x: 820, y: 280, w: 660, h: 170 }, s.label, { size: 48, title: true, weight: "600", enter: "slide-up", delay: 0.3, lineHeight: 1.15 }),
         d.text({ x: 820, y: 470, w: 640, h: 230 }, s.text ?? "", { size: 28, delay: 0.45 }),
         d.text({ x: 820, y: 720, w: 640, h: 60 }, c.highlight || "Fonte: da dove viene il dato", { size: 22, color: p.muted, delay: 0.55 }),
