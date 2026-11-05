@@ -362,3 +362,24 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .zib-avatar::before, .zib-thinking .zib-eyes { animation: none; }
 }
+
+/* During the planet tour the header slides away so it never covers the planet (planet-tour.tsx). */
+.site-header {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+html[data-tour="on"] .site-header {
+  transform: translateY(-140%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* Phones: during the tour Zib's greeting would cover the feature text. */
+@media (max-width: 767px) {
+  html[data-tour="on"] .zib-hint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header {
+    transition: none;
+  }
+}
