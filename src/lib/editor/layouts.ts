@@ -1,19 +1,21 @@
 import type { Element, EnterAnimation, Interaction, Page } from "./schema";
 import { newId } from "./schema";
-import type { Theme } from "./themes";
+import type { StyleKind, Theme } from "./themes";
 import type { ShapeId, SvgShape } from "./shapes";
 import { MOTIFS } from "./motifs";
 import type { MotifId } from "./motif-ids";
+import { fitSize, nth, type Item, type PageContent } from "./content";
 
 /**
- * Ready-made page layouts, drawn with theme roles so each one fits any theme.
+ * Ready-made page layouts, drawn with theme roles so each one fits any theme,
+ * and composed differently for each art direction (theme.kind): the same
+ * "process" page is a row of glowing outlines in Neon, tilted paper cards with
+ * tape in Collage, thick boxes with hard shadows in Brutale.
  *
- * Every layout follows the same grid (see .tastemaker/style-lock.md): text and
- * buttons stay inside the safe area x 120-1480, y 90-810, so the margin band
- * outside it is free for the topic decorations. Each layout has one focal point
- * (a photo, a big number, a diagram) and the text works as its caption.
- * Photo areas are "photo slots": shapes that the editor, or the "con immagini"
- * option, replace with a real photo of the same size.
+ * Text and buttons stay inside the safe area x 120-1480, y 90-810 (see
+ * .tastemaker/style-lock.md), so the margins are free for the topic
+ * decorations. Text comes from a PageContent (written by Zib or the user) and
+ * every block shrinks its font to fit, so real content never spills out.
  */
 
 type Box = { x: number; y: number; w: number; h: number };
@@ -32,6 +34,8 @@ export type Draw = ReturnType<typeof drawWith>;
 
 type TextOpts = {
   size?: number;
+  /** Shrink the size until the text fits its box (default for body text). */
+  fit?: boolean;
   color?: string;
   weight?: "400" | "600" | "800";
   title?: boolean;
@@ -42,27 +46,38 @@ type TextOpts = {
   lineHeight?: number;
   opacity?: number;
   spacing?: number;
+  rotation?: number;
+  /** Average letter width in em, for the fit: wider for big numbers and symbols. */
+  charWidth?: number;
 };
-type ShapeOpts = { ellipse?: boolean; radius?: number; enter?: EnterAnimation; delay?: number; shadow?: boolean; opacity?: number; rotation?: number };
+type ShapeOpts = { ellipse?: boolean; radius?: number; enter?: EnterAnimation; delay?: number; shadow?: boolean; opacity?: number; rotation?: number; stroke?: string; strokeWidth?: number };
 
-/** Element builders bound to a theme. */
+/** Element builders bound to a theme and its art direction. */
 export function drawWith(t: Theme) {
   const p = t.palette;
-  const text = (box: Box, s: string, o: TextOpts = {}): Element => ({
-    ...base(o.enter ?? "fade", o.delay),
-    ...box,
-    ...(o.opacity !== undefined ? { opacity: o.opacity } : {}),
-    type: "text",
-    text: s,
-    fontSize: o.size ?? 34,
-    color: o.color ?? (o.title ? p.title : p.text),
-    align: o.align ?? "left",
-    weight: o.weight ?? (o.title ? "800" : "400"),
-    font: o.title ? t.fonts.title : t.fonts.body,
-    ...(o.italic ? { italic: true } : {}),
-    ...(o.lineHeight ? { lineHeight: o.lineHeight } : {}),
-    ...(o.spacing ? { letterSpacing: o.spacing } : {}),
-  });
+  const kind: StyleKind = t.kind;
+
+  const text = (box: Box, s: string, o: TextOpts = {}): Element => {
+    const lineHeight = o.lineHeight ?? (o.title ? 1.08 : 1.4);
+    const max = o.size ?? 34;
+    const size = o.fit === false ? max : fitSize(s, box.w, box.h, max, Math.min(max, o.title ? 28 : 18), lineHeight, o.charWidth ?? (o.title ? 0.62 : 0.5));
+    return {
+      ...base(o.enter ?? "fade", o.delay),
+      ...box,
+      ...(o.opacity !== undefined ? { opacity: o.opacity } : {}),
+      ...(o.rotation ? { rotation: o.rotation } : {}),
+      type: "text",
+      text: s,
+      fontSize: size,
+      color: o.color ?? (o.title ? p.title : p.text),
+      align: o.align ?? "left",
+      weight: o.weight ?? (o.title ? "800" : "400"),
+      font: o.title ? t.fonts.title : t.fonts.body,
+      ...(o.italic ? { italic: true } : {}),
+      lineHeight,
+      ...(o.spacing ? { letterSpacing: o.spacing } : {}),
+    };
+  };
   const shape = (box: Box, fill: string, o: ShapeOpts = {}): Element => ({
     ...base(o.enter ?? "fade", o.delay),
     ...box,
@@ -73,63 +88,253 @@ export function drawWith(t: Theme) {
     fill,
     radius: o.radius ?? 28,
     ...(o.shadow ? { shadow: true } : {}),
+    ...(o.stroke ? { stroke: o.stroke, strokeWidth: o.strokeWidth ?? 3 } : {}),
   });
   /** A drawing or geometric shape from shapes.ts. */
-  const figure = (box: Box, kind: ShapeId, fill: string, o: Omit<ShapeOpts, "ellipse"> = {}): Element => ({
-    ...shape(box, fill, o),
-    shape: kind,
-    radius: 0,
-  } as Element);
+  const figure = (box: Box, k: ShapeId, fill: string, o: Omit<ShapeOpts, "ellipse"> = {}): Element => ({ ...shape(box, fill, o), shape: k, radius: 0 }) as Element;
   /** Space for a photo, drawn as a card until a real photo takes its place. */
-  const photo = (box: Box, o: { radius?: number; delay?: number; enter?: EnterAnimation } = {}): Element => ({
-    ...shape(box, p.card, { radius: o.radius ?? 28, enter: o.enter ?? "fade", delay: o.delay }),
-    photoSlot: true,
-  } as Element);
+  const photoBox = (box: Box, o: { radius?: number; delay?: number; enter?: EnterAnimation; rotation?: number } = {}): Element =>
+    ({ ...shape(box, p.card, { radius: o.radius ?? radius, enter: o.enter ?? "fade", delay: o.delay, rotation: o.rotation }), photoSlot: true }) as Element;
   const button = (box: Box, label: string, interaction: Interaction | null, o: { fill?: string; color?: string; delay?: number; size?: number } = {}): Element => ({
     ...base("pop", o.delay),
     ...box,
     interaction,
     type: "button",
-    label,
+    label: label.slice(0, 80),
     fill: o.fill ?? p.accent,
     color: o.color ?? p.onAccent,
     fontSize: o.size ?? 30,
     font: t.fonts.body,
   });
-  const hotspot = (x: number, y: number, label: string, interaction: Interaction, delay = 0.4): Element => ({
-    ...base("pop", delay),
-    x,
-    y,
-    w: 80,
-    h: 80,
-    interaction,
-    type: "hotspot",
-    fill: p.accent2,
-    label,
-  });
+  const hotspot = (x: number, y: number, label: string, interaction: Interaction, delay = 0.4): Element => ({ ...base("pop", delay), x, y, w: 80, h: 80, interaction, type: "hotspot", fill: p.accent2, label });
   const page = (name: string, background: string, elements: Element[], transition: Page["transition"] = "fade", cover = false): Page => ({
     id: newId(),
     name,
     background,
     ...(cover && p.coverBg2 ? { color2: p.coverBg2, angle: 135 } : {}),
+    ...(t.pattern && t.pattern !== "none" ? { pattern: t.pattern } : {}),
     transition,
     elements,
   });
   const goto = (target: Page): Interaction => ({ trigger: "click", action: { kind: "goto", pageId: target.id } });
-  const popup = (title: string, body: string): Interaction => ({ trigger: "click", action: { kind: "popup", title, body } });
+  const popup = (title: string, body: string): Interaction => ({ trigger: "click", action: { kind: "popup", title: title.slice(0, 120), body } });
   const reveal = (target: Element): Interaction => ({ trigger: "click", action: { kind: "reveal", targetId: target.id } });
   const tooltip = (s: string): Interaction => ({ trigger: "hover", action: { kind: "tooltip", text: s } });
-  /** Page title at the top of the safe area. */
-  const heading = (s: string, o: { color?: string; size?: number; box?: Box } = {}) =>
-    text(o.box ?? { x: 120, y: 90, w: 1360, h: 110 }, s, { size: o.size ?? 64, title: true, color: o.color ?? p.title, enter: "slide-up", lineHeight: 1.08 });
   /** A straight segment from one point to another (a rotated thin rectangle). */
   const connector = (x1: number, y1: number, x2: number, y2: number, fill: string, thick = 8, delay = 0): Element => {
     const len = Math.hypot(x2 - x1, y2 - y1);
     const angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
     return shape({ x: Math.round((x1 + x2) / 2 - len / 2), y: Math.round((y1 + y2) / 2 - thick / 2), w: Math.round(len), h: thick }, fill, { radius: thick / 2, delay, rotation: Math.round(angle * 10) / 10 });
   };
-  return { p, text, shape, figure, photo, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector };
+
+  /* ---------- The art direction ---------- */
+
+  const radius = { orbita: 32, editoriale: 0, brutale: 0, collage: 6, gesso: 18, neon: 14, organico: 56 }[kind];
+  /** Small tilts for collage cards, so they look laid by hand. */
+  const tilt = (i: number) => (kind === "collage" ? [-1.5, 1.2, -0.8, 1.6, -1.1, 0.9][i % 6] : 0);
+
+  /** A card behind a block of content, drawn the way the art direction wants it. */
+  const card = (box: Box, i = 0, o: { delay?: number; tone?: string } = {}): Element[] => {
+    const delay = o.delay ?? 0.1 + i * 0.12;
+    const fill = o.tone ?? p.contentAlt;
+    switch (kind) {
+      case "editoriale":
+        // No boxes: a strong rule on top is enough on a magazine page.
+        return [shape({ x: box.x, y: box.y, w: box.w, h: 4 }, p.title, { radius: 0, enter: "slide-left", delay })];
+      case "brutale":
+        return [
+          shape({ ...box, x: box.x + 14, y: box.y + 14 }, p.title, { radius: 0, delay }),
+          shape(box, fill, { radius: 0, stroke: p.title, strokeWidth: 5, enter: "slide-up", delay }),
+        ];
+      case "collage":
+        return [
+          shape(box, fill, { radius, shadow: true, rotation: tilt(i), enter: "zoom", delay }),
+          shape({ x: box.x + box.w / 2 - 70, y: box.y - 20, w: 140, h: 40 }, p.accent2, { radius: 2, opacity: 0.8, rotation: tilt(i + 1) * 3, delay: delay + 0.1 }),
+        ];
+      case "gesso":
+        return [shape(box, p.contentBg, { radius, stroke: p.text, strokeWidth: 3, enter: "fade", delay, opacity: 0.95 })];
+      case "neon":
+        return [shape(box, fill, { radius, stroke: i % 2 ? p.accent2 : p.accent, strokeWidth: 3, shadow: true, enter: "fade", delay })];
+      case "organico":
+        return [
+          figure({ x: box.x - 40, y: box.y - 30, w: Math.min(220, box.w * 0.6), h: Math.min(200, box.h * 0.5) }, "blob", i % 2 ? p.accent2 : p.accent, { opacity: 0.18, delay, rotation: i * 40 }),
+          shape(box, fill, { radius, shadow: true, enter: "slide-up", delay }),
+        ];
+      default:
+        return [shape(box, fill, { radius, shadow: true, enter: "slide-up", delay })];
+    }
+  };
+
+  /** The page title with the art direction's mark: dot, rule, highlighter, tape, chalk line, glow label, blob. */
+  const heading = (s: string, o: { color?: string; size?: number; box?: Box; align?: "left" | "center" } = {}): Element[] => {
+    const box = o.box ?? { x: 120, y: 90, w: 1360, h: 110 };
+    const size = (o.size ?? 64) * (kind === "editoriale" ? 1.12 : 1);
+    const title = text(box, s, { size, title: true, color: o.color ?? p.title, enter: "slide-up", align: o.align, lineHeight: 1.05 });
+    const fs = (title as Extract<Element, { type: "text" }>).fontSize;
+    const est = Math.min(box.w, s.length * fs * 0.55);
+    const left = o.align === "center" ? box.x + (box.w - est) / 2 : box.x;
+    switch (kind) {
+      case "editoriale":
+        return [title, shape({ x: box.x, y: box.y + box.h + 8, w: box.w, h: 2 }, p.title, { radius: 0, enter: "slide-left", delay: 0.2, opacity: 0.6 })];
+      case "brutale":
+        return [shape({ x: left - 8, y: box.y + fs * 0.55, w: Math.min(est + 16, box.w), h: fs * 0.5 }, p.accent, { radius: 0, enter: "slide-left", opacity: 0.85 }), title];
+      case "collage":
+        return [shape({ x: left - 14, y: box.y - 10, w: 120, h: 34 }, p.accent2, { radius: 2, rotation: -4, opacity: 0.85, enter: "pop" }), title];
+      case "gesso":
+        return [title, shape({ x: left, y: box.y + Math.min(box.h, fs * 1.15) + 4, w: Math.min(est, 420), h: 6 }, p.accent, { radius: 3, rotation: -1.2, enter: "slide-left", delay: 0.25 })];
+      case "neon":
+        return [shape({ x: left, y: box.y - 16, w: 72, h: 5 }, p.accent2, { radius: 3, enter: "slide-left" }), title];
+      case "organico":
+        return [figure({ x: left - 50, y: box.y - 40, w: 190, h: 160 }, "blob", p.accent, { opacity: 0.16, enter: "zoom" }), title];
+      default:
+        return [shape({ x: left, y: box.y - 14, w: 16, h: 16 }, p.accent2, { ellipse: true, enter: "pop" }), title];
+    }
+  };
+
+  /** Small accent mark next to a list item. */
+  const mark = (x: number, y: number, i: number, delay = 0): Element => {
+    const fill = i % 2 ? p.accent2 : p.accent;
+    switch (kind) {
+      case "editoriale":
+        return text({ x, y: y - 6, w: 70, h: 50 }, String(i + 1).padStart(2, "0"), { size: 32, title: true, color: p.accent, fit: false, delay });
+      case "brutale":
+        return shape({ x, y, w: 30, h: 30 }, fill, { radius: 0, stroke: p.title, strokeWidth: 4, delay, enter: "pop" });
+      case "collage":
+        return figure({ x, y, w: 34, h: 34 }, t.signature, fill, { delay, enter: "pop", rotation: tilt(i) * 8 });
+      case "gesso":
+        return figure({ x, y, w: 40, h: 28 }, "arrow", p.accent, { delay, enter: "slide-left" });
+      case "neon":
+        return shape({ x, y: y + 6, w: 30, h: 8 }, fill, { radius: 4, delay, enter: "slide-left", shadow: true });
+      case "organico":
+        return figure({ x, y, w: 34, h: 34 }, t.signature, fill, { delay, enter: "pop" });
+      default:
+        return shape({ x, y, w: 26, h: 26 }, fill, { ellipse: true, delay, enter: "pop" });
+    }
+  };
+
+  return { p, kind, radius, tilt, text, shape, figure, photoBox, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector, card, mark };
 }
+
+/* ---------- Cover, section and closing: a full composition per art direction ---------- */
+
+type HeroRole = "cover" | "section" | "closing";
+
+/** Background art for the cover family, kept away from where the text goes. */
+function heroArt(d: Draw, role: HeroRole): Element[] {
+  const { p } = d;
+  const closing = role === "closing";
+  switch (d.kind) {
+    case "editoriale":
+      return [
+        d.shape({ x: 120, y: 110, w: 1360, h: 3 }, p.coverSub, { radius: 0, enter: "slide-left" }),
+        d.shape({ x: 120, y: 790, w: 1360, h: 3 }, p.coverSub, { radius: 0, enter: "slide-left", delay: 0.1 }),
+      ];
+    case "brutale":
+      return closing
+        ? [d.shape({ x: -60, y: 640, w: 520, h: 320 }, p.accent, { radius: 0, enter: "slide-up" }), d.shape({ x: 1180, y: -40, w: 480, h: 260 }, p.accent2, { radius: 0, enter: "slide-left", delay: 0.1 })]
+        : [
+            d.shape({ x: 1120, y: 140, w: 380, h: 620 }, p.coverTitle, { radius: 0, enter: "slide-up", delay: 0.05 }),
+            d.shape({ x: 1096, y: 116, w: 380, h: 620 }, p.accent, { radius: 0, enter: "slide-up", stroke: p.coverTitle, strokeWidth: 6 }),
+            d.figure({ x: 1190, y: 330, w: 240, h: 240 }, "burst", p.accent2, { enter: "pop", delay: 0.3 }),
+          ];
+    case "collage":
+      return closing
+        ? [d.shape({ x: -80, y: 600, w: 460, h: 340 }, p.contentAlt, { radius: 6, rotation: 8, shadow: true }), d.shape({ x: 1240, y: -60, w: 420, h: 320 }, p.card, { radius: 6, rotation: -6, shadow: true })]
+        : [
+            d.shape({ x: 1000, y: 130, w: 470, h: 560 }, p.card, { radius: 6, rotation: 5, shadow: true, enter: "zoom" }),
+            d.shape({ x: 1050, y: 190, w: 430, h: 520 }, p.contentAlt, { radius: 6, rotation: -3, shadow: true, enter: "zoom", delay: 0.1 }),
+            d.shape({ x: 1180, y: 160, w: 170, h: 46 }, p.accent2, { radius: 2, rotation: -6, opacity: 0.85, delay: 0.3 }),
+            d.figure({ x: 1150, y: 330, w: 220, h: 220 }, "star", p.accent, { rotation: 12, enter: "pop", delay: 0.35 }),
+          ];
+    case "gesso":
+      return [
+        d.figure({ x: closing ? 140 : 1080, y: closing ? 120 : 220, w: 360, h: 360 }, "ring", p.coverSub, { opacity: 0.5, enter: "zoom" }),
+        d.figure({ x: closing ? 1240 : 1220, y: closing ? 620 : 600, w: 150, h: 150 }, "star", p.accent, { rotation: 15, enter: "pop", delay: 0.3 }),
+        d.figure({ x: closing ? 1300 : 900, y: closing ? 140 : 140, w: 170, h: 90 }, "arrow", p.accent2, { rotation: closing ? 150 : 160, opacity: 0.85, delay: 0.4 }),
+      ];
+    case "neon":
+      return [
+        ...[0, 1, 2, 3, 4].map((i) => d.shape({ x: 0, y: 640 + i * 52, w: 1600, h: 2 }, p.accent, { radius: 0, opacity: 0.18 + i * 0.12, delay: i * 0.05 })),
+        d.figure({ x: closing ? 560 : 1020, y: closing ? 300 : 120, w: closing ? 480 : 440, h: closing ? 480 : 440 }, "ring", p.accent, { enter: "zoom", shadow: true, opacity: closing ? 0.35 : 1 }),
+        d.figure({ x: closing ? 1300 : 1130, y: closing ? 80 : 230, w: 220, h: 220 }, "ring", p.accent2, { enter: "zoom", delay: 0.2, opacity: 0.8 }),
+      ];
+    case "organico":
+      return closing
+        ? [d.figure({ x: -160, y: 560, w: 560, h: 480 }, "blob", p.accent, { opacity: 0.85, enter: "zoom" }), d.figure({ x: 1220, y: -120, w: 460, h: 420 }, "blob", p.accent2, { opacity: 0.7, rotation: 60, enter: "zoom", delay: 0.15 })]
+        : [
+            d.figure({ x: 980, y: 80, w: 620, h: 560 }, "blob", p.accent, { opacity: 0.9, enter: "zoom" }),
+            d.figure({ x: 1180, y: 460, w: 380, h: 340 }, "blob", p.accent2, { rotation: 110, opacity: 0.85, enter: "zoom", delay: 0.15 }),
+            d.figure({ x: 1110, y: 260, w: 200, h: 200 }, "leaf", p.coverBg, { opacity: 0.5, delay: 0.3 }),
+          ];
+    default:
+      return closing
+        ? [d.figure({ x: -220, y: 470, w: 640, h: 640 }, "ring", p.accent, { enter: "zoom" }), d.shape({ x: 1260, y: -160, w: 480, h: 480 }, p.accent2, { ellipse: true, enter: "zoom", delay: 0.15, opacity: 0.3 })]
+        : [
+            d.shape({ x: 1040, y: -220, w: 780, h: 780 }, p.accent, { ellipse: true, enter: "zoom", opacity: 0.9 }),
+            d.figure({ x: 1180, y: 440, w: 380, h: 380 }, "ring", p.accent2, { enter: "zoom", delay: 0.2 }),
+            d.shape({ x: 990, y: 200, w: 48, h: 48 }, p.accent2, { ellipse: true, enter: "pop", delay: 0.4 }),
+          ];
+  }
+}
+
+/** The same element seen in a mirror (for the right-handed cover variant). */
+function mirror(e: Element): Element {
+  const flip = e.type === "shape" && e.shape !== "rect" && e.shape !== "ellipse" ? { flipX: !e.flipX } : {};
+  return { ...e, x: 1600 - e.x - e.w, rotation: -e.rotation, ...flip };
+}
+
+/**
+ * Cover, section and closing. The art direction draws the background art;
+ * the theme's variant decides where the words go (so two themes with the same
+ * direction never look alike) and its signature drawing signs the page.
+ */
+function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: string; subtitle: string; number?: string }, t: Theme): Page {
+  const { p } = d;
+  const editorial = d.kind === "editoriale";
+  const heading = c.heading || defaults.heading;
+  const sub = c.subtitle || defaults.subtitle;
+  const v = role === "closing" ? (t.variant === 1 ? 1 : 0) : t.variant;
+  // Centred words need the art in the corners; words at the bottom push the art up.
+  let art = heroArt(d, v === 2 && role !== "closing" ? "closing" : role);
+  if (v === 1) art = art.map(mirror);
+  if (v === 3) art = art.map((e) => ({ ...e, y: e.y - 220 }));
+  const sigBox = role === "closing" || v === 2 ? { x: 1300, y: 640, w: 200, h: 200 } : v === 1 ? { x: 70, y: 610, w: 240, h: 240 } : v === 3 ? { x: 1220, y: 560, w: 260, h: 260 } : { x: 1250, y: 600, w: 240, h: 240 };
+  const sig = d.figure(sigBox, t.signature, p.accent2, { opacity: 0.9, enter: "pop", delay: 0.45, rotation: v === 1 ? 8 : -8 });
+  const els = [...art, sig];
+  const side = v === 1 ? { x: 600, align: "right" as const } : { x: 120, align: "left" as const };
+
+  if (role === "closing") {
+    els.push(
+      d.text({ x: 200, y: 250, w: 1200, h: 220 }, heading, { size: editorial ? 150 : 124, title: true, color: p.coverTitle, align: "center", enter: "pop", lineHeight: 1 }),
+      d.text({ x: 240, y: 500, w: 1120, h: 110 }, sub, { size: 36, color: p.coverSub, align: "center", delay: 0.3 }),
+    );
+    return d.page(heading.slice(0, 80) || "Chiusura", p.coverBg, els, "zoom", true);
+  }
+  if (role === "section") {
+    const n = defaults.number ?? "01";
+    const align = v === 2 ? ("center" as const) : side.align;
+    const x = v === 2 ? 200 : side.x;
+    const w = v === 2 ? 1200 : 880;
+    els.push(
+      d.text({ x, y: editorial ? 130 : 180, w, h: 220 }, n, { size: editorial ? 190 : 150, title: true, color: p.accent2, fit: false, enter: "blur", lineHeight: 1, align }),
+      d.text({ x, y: 420, w, h: 240 }, heading, { size: 88, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.15, lineHeight: 1.04, align }),
+      d.text({ x, y: 680, w, h: 100 }, sub, { size: 32, color: p.coverSub, delay: 0.35, align }),
+    );
+    return d.page(heading.slice(0, 80) || "Sezione", p.coverBg, els, "slide-left", true);
+  }
+  const box =
+    v === 2 ? { x: 200, y: 240, w: 1200, h: 330 }
+    : v === 3 ? { x: 120, y: 400, w: 960, h: 300 }
+    : editorial ? { x: side.x, y: 260, w: 880, h: 380 }
+    : { x: side.x, y: 260, w: 880, h: 330 };
+  els.push(
+    d.text(box, heading, { size: editorial || v === 3 ? 132 : 104, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: editorial ? 0.98 : 1.02, align: v === 2 ? "center" : side.align }),
+    d.text({ x: v === 2 ? 270 : box.x, y: v === 3 ? 720 : box.y + box.h + 20, w: v === 2 ? 1060 : 860, h: 90 }, sub, { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.35, align: v === 2 ? "center" : side.align }),
+  );
+  return d.page("Copertina", p.coverBg, els, "fade", true);
+}
+
+/* ---------- The layouts ---------- */
 
 export type LayoutId =
   | "copertina" | "sezione" | "chiusura" | "agenda"
@@ -170,293 +375,353 @@ export const LAYOUT_NAMES = Object.fromEntries(LAYOUT_GROUPS.flatMap((g) => g.la
 /** Layouts with at least one photo slot. */
 export const PHOTO_LAYOUTS: LayoutId[] = ["foto-piena", "immagine-testo", "mosaico", "esplora"];
 
+/** Layouts that can show the same content: "Cambia impaginazione" moves between them. */
+export const LAYOUT_FAMILIES: LayoutId[][] = [
+  ["copertina", "foto-piena"],
+  ["sezione", "citazione"],
+  ["titolo-testo", "immagine-testo", "mosaico"],
+  ["elenco", "tre-colonne", "icone", "processo", "linea-tempo", "piramide", "mappa", "schede", "agenda"],
+  ["due-colonne", "confronto"],
+  ["numeri", "percentuale"],
+  ["domanda"],
+  ["bivio"],
+  ["chiusura", "contatti"],
+  ["esplora", "immagine-testo"],
+];
+
 const DEFAULT_ICONS: SvgShape[] = ["bulb", "star", "heart", "gear", "chart", "pin"];
 
 export type LayoutOptions = {
   /** Topic of the presentation: icon layouts use its drawings. */
   motif?: MotifId;
+  /** Drawings chosen for the topic (they win over the preset). */
+  icons?: SvgShape[];
 };
 
-/** Builds one page in the given layout and theme. `title` customises the main heading. */
-export function buildLayout(id: LayoutId, t: Theme, title?: string, opts: LayoutOptions = {}): Page {
+const ph = (i: number, what: string) => `${what} ${i + 1}`;
+const items = (c: PageContent, n: number, fallback: (i: number) => Item): Item[] => Array.from({ length: n }, (_, i) => nth(c.items, i, fallback(i)));
+/** How many items the content has, between min and max (placeholders fill up to min). */
+const count = (c: PageContent, min: number, max: number) => Math.max(min, Math.min(max, c.items?.length ?? 0));
+
+/**
+ * Builds one page in the given layout and theme. `content` is the page's
+ * words (or just its heading); anything missing becomes a placeholder that
+ * says what to write.
+ */
+export function buildLayout(id: LayoutId, t: Theme, content?: PageContent | string, opts: LayoutOptions = {}): Page {
+  const c: PageContent = typeof content === "string" ? { heading: content } : (content ?? {});
+  const page = drawLayout(id, t, c, opts);
+  return { ...page, source: { layout: id, content: c } };
+}
+
+function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions): Page {
   const d = drawWith(t);
   const { p } = d;
-  const icons = opts.motif ? MOTIFS[opts.motif].icons : DEFAULT_ICONS;
+  const icons = opts.icons?.length ? opts.icons : opts.motif ? MOTIFS[opts.motif].icons : DEFAULT_ICONS;
+  const H = (fallback: string) => c.heading || fallback;
 
   switch (id) {
     /* ---------- Structure ---------- */
 
     case "copertina":
-      return d.page("Copertina", p.coverBg, [
-        d.shape({ x: 1040, y: -220, w: 780, h: 780 }, p.accent, { ellipse: true, enter: "zoom", opacity: 0.9 }),
-        d.figure({ x: 1180, y: 440, w: 380, h: 380 }, "ring", p.accent2, { enter: "zoom", delay: 0.2 }),
-        d.shape({ x: 990, y: 200, w: 48, h: 48 }, p.accent2, { ellipse: true, enter: "pop", delay: 0.4 }),
-        d.shape({ x: 120, y: 250, w: 96, h: 10 }, p.accent2, { radius: 5, enter: "slide-left", delay: 0.1 }),
-        d.text({ x: 120, y: 290, w: 900, h: 270 }, title ?? "Il titolo della presentazione", { size: 104, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: 1.02 }),
-        d.text({ x: 120, y: 580, w: 820, h: 90 }, "Una riga che dice di cosa parlerai", { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.3 }),
-      ], "fade", true);
-
+      return hero(d, "cover", c, { heading: "Il titolo della presentazione", subtitle: "Una riga che dice di cosa parlerai" }, t);
     case "sezione":
-      return d.page("Sezione", p.coverBg, [
-        d.text({ x: 820, y: 40, w: 760, h: 620 }, "01", { size: 400, title: true, color: p.accent2, align: "right", enter: "blur", opacity: 0.35, lineHeight: 1 }),
-        d.shape({ x: 120, y: 330, w: 160, h: 10 }, p.accent2, { radius: 5, enter: "slide-left" }),
-        d.text({ x: 120, y: 370, w: 980, h: 250 }, title ?? "Titolo della sezione", { size: 88, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.15, lineHeight: 1.05 }),
-        d.text({ x: 120, y: 640, w: 900, h: 70 }, "Una frase che introduce questa parte", { size: 32, color: p.coverSub, delay: 0.35 }),
-      ], "slide-left", true);
-
+      return hero(d, "section", c, { heading: "Titolo della sezione", subtitle: "Una frase che introduce questa parte", number: c.stats?.[0]?.value }, t);
     case "chiusura":
-      return d.page("Chiusura", p.coverBg, [
-        d.figure({ x: -220, y: 470, w: 640, h: 640 }, "ring", p.accent, { enter: "zoom" }),
-        d.shape({ x: 1260, y: -160, w: 480, h: 480 }, p.accent2, { ellipse: true, enter: "zoom", delay: 0.15, opacity: 0.3 }),
-        d.text({ x: 200, y: 250, w: 1200, h: 200 }, title ?? "Grazie!", { size: 128, title: true, color: p.coverTitle, align: "center", enter: "pop", lineHeight: 1 }),
-        d.text({ x: 200, y: 480, w: 1200, h: 70 }, "Domande? Parliamone insieme.", { size: 36, color: p.coverSub, align: "center", delay: 0.3 }),
-        ...[0, 1, 2].map((i) => d.shape({ x: 764 + i * 28, y: 600, w: 16, h: 16 }, p.accent2, { ellipse: true, enter: "pop", delay: 0.5 + i * 0.1 })),
-      ], "zoom", true);
+      return hero(d, "closing", c, { heading: "Grazie!", subtitle: "Domande? Parliamone insieme." }, t);
 
-    case "agenda":
+    case "agenda": {
+      const n = count(c, 4, 6);
+      const list = items(c, n, (i) => ({ title: ["Introduzione", "Il cuore dell'argomento", "Esempi pratici", "Conclusioni", "Approfondimenti", "Domande"][i] }));
+      const step = Math.min(165, 660 / n);
       return d.page("Indice", p.contentAlt, [
-        d.text({ x: 120, y: 120, w: 500, h: 260 }, title ?? "Di cosa parleremo", { size: 72, title: true, enter: "slide-up", lineHeight: 1.05 }),
-        d.shape({ x: 120, y: 410, w: 96, h: 10 }, p.accent, { radius: 5, enter: "slide-left", delay: 0.2 }),
-        ...["Introduzione", "Il cuore dell'argomento", "Esempi pratici", "Conclusioni"].flatMap((s, i) => [
-          d.text({ x: 700, y: 130 + i * 165, w: 140, h: 100 }, String(i + 1).padStart(2, "0"), { size: 64, title: true, color: p.accent, enter: "pop", delay: 0.2 + i * 0.15 }),
-          d.text({ x: 860, y: 148 + i * 165, w: 620, h: 70 }, s, { size: 40, title: true, weight: "600", enter: "slide-left", delay: 0.25 + i * 0.15 }),
-          d.shape({ x: 700, y: 268 + i * 165, w: 780, h: 3 }, p.card, { radius: 2, delay: 0.3 + i * 0.15 }),
+        ...d.heading(H("Di cosa parleremo"), { size: 72, box: { x: 120, y: 130, w: 500, h: 280 } }),
+        ...list.flatMap((it, i) => [
+          d.text({ x: 700, y: 130 + i * step, w: 140, h: 90 }, String(i + 1).padStart(2, "0"), { size: Math.min(64, step * 0.5), title: true, color: i % 2 ? p.accent2 : p.accent, enter: "pop", delay: 0.2 + i * 0.12, fit: false }),
+          d.text({ x: 860, y: 140 + i * step, w: 620, h: step - 30 }, it.title, { size: 38, title: true, weight: "600", enter: "slide-left", delay: 0.25 + i * 0.12 }),
+          d.shape({ x: 700, y: 130 + (i + 1) * step - 12, w: 780, h: 2 }, p.card, { radius: 1, delay: 0.3 + i * 0.12 }),
         ]),
       ], "fade");
+    }
 
     /* ---------- Pages and layout ---------- */
 
-    case "titolo-testo":
-      return d.page("Titolo e testo", p.contentBg, [
-        d.shape({ x: 120, y: 120, w: 12, h: 220 }, p.accent, { radius: 6, enter: "slide-up" }),
-        d.text({ x: 170, y: 110, w: 540, h: 420 }, title ?? "Un titolo chiaro", { size: 68, title: true, enter: "slide-up", lineHeight: 1.05 }),
-        d.text({ x: 800, y: 120, w: 680, h: 460 }, "Scrivi qui il messaggio della pagina in poche righe. Un'idea per pagina rende la presentazione più facile da seguire e da ricordare.", { size: 34, lineHeight: 1.5, delay: 0.25 }),
-        d.shape({ x: 800, y: 620, w: 680, h: 170 }, p.contentAlt, { radius: 24, shadow: true, delay: 0.4 }),
-        d.text({ x: 840, y: 650, w: 600, h: 110 }, "La frase da ricordare, in una riga", { size: 32, weight: "600", color: p.accent, delay: 0.5, lineHeight: 1.3 }),
+    case "titolo-testo": {
+      const editorial = d.kind === "editoriale";
+      return d.page(H("Titolo e testo").slice(0, 80), p.contentBg, [
+        ...d.heading(H("Un titolo chiaro"), { size: editorial ? 80 : 68, box: { x: 120, y: 110, w: 580, h: 440 } }),
+        d.text({ x: 800, y: 120, w: 680, h: c.highlight ? 470 : 660 }, c.body || "Scrivi qui il messaggio della pagina in poche righe. Un'idea per pagina rende la presentazione più facile da seguire e da ricordare.", { size: 34, delay: 0.25, lineHeight: 1.5 }),
+        ...(c.highlight !== "" ? [
+          ...d.card({ x: 800, y: 630, w: 680, h: 170 }, 1, { delay: 0.4 }),
+          d.text({ x: 840, y: 660, w: 600, h: 110 }, c.highlight || "La frase da ricordare, in una riga", { size: 30, weight: "600", color: p.accent, delay: 0.5, lineHeight: 1.3 }),
+        ] : []),
       ], "slide-left");
+    }
 
     case "due-colonne":
-      return d.page("Due colonne", p.contentBg, [
-        d.heading(title ?? "Due punti di vista"),
-        ...[0, 1].flatMap((i) => [
-          d.shape({ x: 120 + i * 700, y: 250, w: 660, h: 560 }, i ? p.card : p.contentAlt, { radius: 32, shadow: !i, enter: "slide-up", delay: 0.15 + i * 0.15 }),
-          d.shape({ x: 170 + i * 700, y: 300, w: 170, h: 52 }, p.accent, { radius: 26, delay: 0.3 + i * 0.15 }),
-          d.text({ x: 170 + i * 700, y: 308, w: 170, h: 40 }, i ? "Dopo" : "Prima", { size: 24, weight: "600", color: p.onAccent, align: "center", delay: 0.3 + i * 0.15 }),
-          d.text({ x: 170 + i * 700, y: 390, w: 560, h: 70 }, "Titolo della colonna", { size: 40, title: true, weight: "600", delay: 0.35 + i * 0.15 }),
-          d.text({ x: 170 + i * 700, y: 470, w: 560, h: 300 }, "Scrivi qui il contenuto: un confronto, pro e contro, teoria e pratica.", { size: 30, lineHeight: 1.45, delay: 0.4 + i * 0.15 }),
-        ]),
-      ], "slide-left");
+    case "confronto": {
+      const vs = id === "confronto";
+      const cols = items(c, 2, (i) => ({ title: vs ? (i ? "Opzione B" : "Opzione A") : i ? "Dopo" : "Prima", text: vs ? "Un vantaggio concreto\nUn limite da sapere\nQuando sceglierla" : "Scrivi qui il contenuto: un confronto, pro e contro, teoria e pratica." }));
+      const els: Element[] = [...d.heading(H(vs ? "Le due opzioni a confronto" : "Due punti di vista"), { align: vs ? "center" : "left", size: vs ? 56 : 64 })];
+      cols.forEach((col, i) => {
+        const x = 120 + i * 720;
+        const lines = (col.text ?? "").split("\n").filter(Boolean);
+        els.push(
+          ...d.card({ x, y: 250, w: 640, h: 560 }, i),
+          d.text({ x: x + 40, y: 290, w: 560, h: 80 }, col.title, { size: 46, title: true, color: i ? p.accent2 : p.accent, delay: 0.3 + i * 0.15 }),
+          d.text({ x: x + 40, y: 390, w: 560, h: 390 }, vs ? lines.map((l) => `• ${l}`).join("\n") : (col.text ?? ""), { size: 30, delay: 0.4 + i * 0.15, lineHeight: 1.5 }),
+        );
+      });
+      if (vs) {
+        els.push(
+          d.shape({ x: 715, y: 440, w: 170, h: 170 }, p.accent, { ellipse: d.kind !== "brutale", radius: 0, enter: "pop", delay: 0.6, shadow: true, ...(d.kind === "brutale" ? { stroke: p.title, strokeWidth: 5 } : {}), rotation: d.kind === "collage" ? -8 : 0 }),
+          d.text({ x: 715, y: 483, w: 170, h: 84 }, "VS", { size: 60, title: true, color: p.onAccent, align: "center", enter: "pop", delay: 0.65, fit: false }),
+        );
+      }
+      return d.page(vs ? "Confronto" : "Due colonne", p.contentBg, els, vs ? "fade" : "slide-left");
+    }
 
-    case "tre-colonne":
+    case "tre-colonne": {
+      const cols = items(c, 3, (i) => ({ title: ["Primo punto", "Secondo punto", "Terzo punto"][i], text: "Una o due frasi che spiegano il punto." }));
       return d.page("Tre colonne", p.contentBg, [
-        d.heading(title ?? "Tre idee, una pagina"),
-        ...[0, 1, 2].flatMap((i) => [
-          d.shape({ x: 120 + i * 470, y: 250, w: 420, h: 560 }, p.contentAlt, { radius: 28, shadow: true, enter: "slide-up", delay: 0.1 + i * 0.15 }),
-          d.shape({ x: 160 + i * 470, y: 290, w: 120, h: 120 }, i === 1 ? p.accent2 : p.accent, { ellipse: true, enter: "pop", delay: 0.25 + i * 0.15 }),
-          d.figure({ x: 190 + i * 470, y: 320, w: 60, h: 60 }, icons[i % icons.length], i === 1 ? p.title : p.onAccent, { enter: "pop", delay: 0.3 + i * 0.15 }),
-          d.text({ x: 160 + i * 470, y: 450, w: 340, h: 60 }, ["Primo punto", "Secondo punto", "Terzo punto"][i], { size: 38, title: true, weight: "600", delay: 0.35 + i * 0.15 }),
-          d.text({ x: 160 + i * 470, y: 520, w: 340, h: 240 }, "Una o due frasi che spiegano il punto.", { size: 28, lineHeight: 1.45, delay: 0.4 + i * 0.15 }),
-        ]),
+        ...d.heading(H("Tre idee, una pagina")),
+        ...cols.flatMap((col, i) => {
+          const x = 120 + i * 470;
+          return [
+            ...d.card({ x, y: 260, w: 420, h: 550 }, i),
+            d.shape({ x: x + 40, y: 300, w: 110, h: 110 }, i === 1 ? p.accent2 : p.accent, { ellipse: d.kind !== "brutale" && d.kind !== "editoriale", radius: 0, enter: "pop", delay: 0.25 + i * 0.15 }),
+            d.figure({ x: x + 67, y: 327, w: 56, h: 56 }, icons[i % icons.length], i === 1 ? p.title : p.onAccent, { enter: "pop", delay: 0.3 + i * 0.15 }),
+            d.text({ x: x + 40, y: 440, w: 340, h: 70 }, col.title, { size: 36, title: true, weight: "600", delay: 0.35 + i * 0.15 }),
+            d.text({ x: x + 40, y: 520, w: 340, h: 260 }, col.text ?? "", { size: 27, delay: 0.4 + i * 0.15 }),
+          ];
+        }),
       ], "slide-up");
+    }
 
-    case "confronto":
-      return d.page("Confronto", p.contentBg, [
-        d.shape({ x: 0, y: 0, w: 800, h: 900 }, p.contentAlt, { radius: 0, enter: "slide-left" }),
-        d.shape({ x: 800, y: 0, w: 800, h: 900 }, p.card, { radius: 0, enter: "slide-left", delay: 0.1, opacity: 0.6 }),
-        d.text({ x: 200, y: 90, w: 1200, h: 80 }, title ?? "Le due opzioni a confronto", { size: 48, title: true, align: "center", enter: "slide-up" }),
-        ...[0, 1].flatMap((i) => [
-          d.text({ x: 120 + i * 800, y: 230, w: 560, h: 80 }, i ? "Opzione B" : "Opzione A", { size: 52, title: true, color: i ? p.accent2 : p.accent, delay: 0.2 + i * 0.2 }),
-          ...["Un vantaggio concreto", "Un limite da sapere", "Quando sceglierla"].map((s, j) =>
-            d.text({ x: 120 + i * 800, y: 360 + j * 130, w: 540, h: 100 }, `• ${s}`, { size: 32, lineHeight: 1.35, enter: "slide-up", delay: 0.3 + i * 0.2 + j * 0.1 }),
-          ),
-        ]),
-        d.shape({ x: 715, y: 375, w: 170, h: 170 }, p.accent, { ellipse: true, enter: "pop", delay: 0.6, shadow: true }),
-        d.text({ x: 715, y: 418, w: 170, h: 84 }, "VS", { size: 60, title: true, color: p.onAccent, align: "center", enter: "pop", delay: 0.65 }),
-      ], "fade");
-
-    case "icone":
+    case "icone": {
+      const list = items(c, 6, (i) => ({ title: ph(i, "Voce"), text: "Una riga di spiegazione." }));
       return d.page("Griglia di icone", p.contentBg, [
-        d.heading(title ?? "Sei cose da sapere"),
-        ...[0, 1, 2, 3, 4, 5].flatMap((i) => {
+        ...d.heading(H("Sei cose da sapere")),
+        ...list.flatMap((it, i) => {
           const x = 120 + (i % 3) * 470;
           const y = 260 + Math.floor(i / 3) * 280;
           const delay = 0.15 + i * 0.1;
           return [
-            d.shape({ x, y, w: 110, h: 110 }, p.card, { radius: 32, enter: "pop", delay }),
+            d.shape({ x, y, w: 110, h: 110 }, d.kind === "neon" ? p.contentAlt : p.card, { radius: d.kind === "organico" ? 55 : Math.min(32, d.radius), enter: "pop", delay, ...(d.kind === "brutale" || d.kind === "gesso" || d.kind === "neon" ? { stroke: d.kind === "neon" ? p.accent : p.title, strokeWidth: d.kind === "brutale" ? 5 : 3 } : {}), rotation: d.tilt(i) * 3 }),
             d.figure({ x: x + 25, y: y + 25, w: 60, h: 60 }, icons[i % icons.length], p.accent, { enter: "pop", delay: delay + 0.05 }),
-            d.text({ x: x + 140, y: y + 6, w: 290, h: 50 }, `Voce ${i + 1}`, { size: 32, title: true, weight: "600", delay: delay + 0.1 }),
-            d.text({ x: x + 140, y: y + 60, w: 290, h: 110 }, "Una riga di spiegazione.", { size: 24, color: p.muted, lineHeight: 1.4, delay: delay + 0.1 }),
+            d.text({ x: x + 140, y: y + 6, w: 290, h: 52 }, it.title, { size: 32, title: true, weight: "600", delay: delay + 0.1 }),
+            d.text({ x: x + 140, y: y + 62, w: 290, h: 150 }, it.text ?? "", { size: 24, color: p.muted, delay: delay + 0.1 }),
           ];
         }),
       ], "slide-up");
+    }
 
     /* ---------- Photos and text ---------- */
 
-    case "foto-piena":
+    case "foto-piena": {
+      const band = d.kind === "editoriale" || d.kind === "brutale";
       return d.page("Foto a tutta pagina", p.coverBg, [
-        d.photo({ x: 0, y: 0, w: 1600, h: 900 }, { radius: 0, enter: "zoom" }),
-        d.shape({ x: 0, y: 560, w: 1600, h: 340 }, p.coverBg, { radius: 0, opacity: 0.82, enter: "slide-up", delay: 0.2 }),
-        d.shape({ x: 120, y: 610, w: 80, h: 8 }, p.accent2, { radius: 4, enter: "slide-left", delay: 0.35 }),
-        d.text({ x: 120, y: 640, w: 1300, h: 110 }, title ?? "Una foto che racconta tutto", { size: 76, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.3, lineHeight: 1.05 }),
-        d.text({ x: 120, y: 760, w: 1200, h: 44 }, "Una riga per dire dove e quando", { size: 26, color: p.coverSub, delay: 0.45 }),
+        d.photoBox({ x: 0, y: 0, w: 1600, h: 900 }, { radius: 0, enter: "zoom" }),
+        band
+          ? d.shape({ x: 80, y: 520, w: 1000, h: 300 }, p.coverBg, { radius: 0, enter: "slide-up", delay: 0.2, ...(d.kind === "brutale" ? { stroke: p.coverTitle, strokeWidth: 6 } : {}) })
+          : d.shape({ x: 0, y: 560, w: 1600, h: 340 }, p.coverBg, { radius: 0, opacity: 0.82, enter: "slide-up", delay: 0.2 }),
+        d.shape({ x: 120, y: 590, w: 80, h: 8 }, p.accent2, { radius: 4, enter: "slide-left", delay: 0.35 }),
+        d.text({ x: 120, y: 620, w: band ? 920 : 1300, h: 130 }, H("Una foto che racconta tutto"), { size: 76, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.3, lineHeight: 1.04 }),
+        d.text({ x: 120, y: 756, w: band ? 920 : 1200, h: 48 }, c.subtitle || "Una riga per dire dove e quando", { size: 26, color: p.coverSub, delay: 0.45 }),
       ], "fade", true);
+    }
 
-    case "immagine-testo":
+    case "immagine-testo": {
+      const framed = d.kind === "collage" || d.kind === "organico" || d.kind === "neon";
       return d.page("Foto e testo", p.contentAlt, [
-        d.photo({ x: 0, y: 0, w: 760, h: 900 }, { radius: 0, enter: "slide-left" }),
-        d.shape({ x: 860, y: 170, w: 80, h: 8 }, p.accent, { radius: 4, enter: "slide-left", delay: 0.2 }),
-        d.text({ x: 860, y: 200, w: 620, h: 200 }, title ?? "Una storia da raccontare", { size: 64, title: true, enter: "slide-up", delay: 0.1, lineHeight: 1.05 }),
-        d.text({ x: 860, y: 420, w: 600, h: 300 }, "Accompagna la foto con poche righe: cosa si vede, perché conta, cosa ricordare.", { size: 32, lineHeight: 1.5, delay: 0.3 }),
+        framed
+          ? d.photoBox({ x: 100, y: 110, w: 640, h: 680 }, { rotation: d.tilt(0) * 2, enter: "zoom", radius: d.kind === "organico" ? 320 : d.radius })
+          : d.photoBox({ x: 0, y: 0, w: 760, h: 900 }, { radius: 0, enter: "slide-left" }),
+        ...d.heading(H("Una storia da raccontare"), { box: { x: 860, y: 180, w: 620, h: 220 } }),
+        d.text({ x: 860, y: 430, w: 620, h: 370 }, c.body || "Accompagna la foto con poche righe: cosa si vede, perché conta, cosa ricordare.", { size: 31, delay: 0.3, lineHeight: 1.5 }),
       ], "fade");
+    }
 
     case "mosaico":
       return d.page("Mosaico di foto", p.contentBg, [
-        d.text({ x: 120, y: 120, w: 470, h: 280 }, title ?? "Uno sguardo d'insieme", { size: 64, title: true, enter: "slide-up", lineHeight: 1.05 }),
-        d.shape({ x: 120, y: 420, w: 80, h: 8 }, p.accent, { radius: 4, enter: "slide-left", delay: 0.2 }),
-        d.text({ x: 120, y: 460, w: 460, h: 300 }, "Più foto raccontano un luogo, un evento o un progetto meglio di una sola.", { size: 30, lineHeight: 1.45, delay: 0.3 }),
-        d.photo({ x: 650, y: 90, w: 500, h: 450 }, { enter: "zoom", delay: 0.1, radius: 24 }),
-        d.photo({ x: 650, y: 560, w: 240, h: 250 }, { enter: "zoom", delay: 0.2, radius: 24 }),
-        d.photo({ x: 910, y: 560, w: 240, h: 250 }, { enter: "zoom", delay: 0.3, radius: 24 }),
-        d.photo({ x: 1170, y: 90, w: 310, h: 720 }, { enter: "zoom", delay: 0.4, radius: 24 }),
+        ...d.heading(H("Uno sguardo d'insieme"), { box: { x: 120, y: 130, w: 470, h: 280 } }),
+        d.text({ x: 120, y: 450, w: 470, h: 350 }, c.body || "Più foto raccontano un luogo, un evento o un progetto meglio di una sola.", { size: 30, delay: 0.3 }),
+        d.photoBox({ x: 650, y: 90, w: 500, h: 450 }, { enter: "zoom", delay: 0.1, rotation: d.tilt(0) }),
+        d.photoBox({ x: 650, y: 560, w: 240, h: 250 }, { enter: "zoom", delay: 0.2, rotation: d.tilt(1) }),
+        d.photoBox({ x: 910, y: 560, w: 240, h: 250 }, { enter: "zoom", delay: 0.3, rotation: d.tilt(2) }),
+        d.photoBox({ x: 1170, y: 90, w: 310, h: 720 }, { enter: "zoom", delay: 0.4, rotation: d.tilt(3) }),
       ], "fade");
 
-    case "citazione":
+    case "citazione": {
+      const q = c.quote ?? { text: c.heading || "La semplicità è la suprema sofisticazione.", author: c.subtitle || "Leonardo da Vinci" };
+      const editorial = d.kind === "editoriale";
       return d.page("Citazione", p.coverBg, [
-        d.text({ x: 100, y: 0, w: 400, h: 420 }, "“", { size: 400, title: true, color: p.accent2, enter: "pop", opacity: 0.9, lineHeight: 1 }),
-        d.text({ x: 220, y: 280, w: 1160, h: 300 }, title ?? "La semplicità è la suprema sofisticazione.", { size: 62, title: true, weight: "600", color: p.coverTitle, italic: true, lineHeight: 1.25, enter: "blur", delay: 0.2 }),
-        d.shape({ x: 220, y: 640, w: 64, h: 6 }, p.accent2, { radius: 3, enter: "slide-left", delay: 0.4 }),
-        d.text({ x: 310, y: 618, w: 900, h: 50 }, "Leonardo da Vinci", { size: 30, color: p.coverSub, delay: 0.5 }),
+        d.text({ x: 100, y: 0, w: 400, h: 420 }, d.kind === "brutale" ? "!" : "“", { size: 400, title: true, color: p.accent2, enter: "pop", opacity: 0.9, lineHeight: 1, fit: false }),
+        d.text({ x: 220, y: 260, w: 1160, h: 340 }, q.text, { size: editorial ? 70 : 60, title: true, weight: "600", color: p.coverTitle, italic: !editorial, lineHeight: 1.22, enter: "blur", delay: 0.2 }),
+        d.shape({ x: 220, y: 650, w: 64, h: 6 }, p.accent2, { radius: 3, enter: "slide-left", delay: 0.4 }),
+        d.text({ x: 310, y: 628, w: 900, h: 50 }, q.author, { size: 30, color: p.coverSub, delay: 0.5 }),
       ], "fade", true);
+    }
 
-    case "elenco":
+    case "elenco": {
+      const n = count(c, 4, 6);
+      const list = items(c, n, (i) => ({ title: ["Il primo concetto", "Il secondo, con un esempio", "Il terzo, che lega i primi due", "La conclusione", "Un dettaglio in più", "L'ultima idea"][i], text: "Una frase che lo spiega a chi ascolta." }));
+      const rows = Math.ceil(n / 2);
+      const rowH = 540 / rows;
       return d.page("Elenco", p.contentBg, [
-        d.heading(title ?? "I punti chiave"),
-        ...["Il primo concetto", "Il secondo, con un esempio", "Il terzo, che lega i primi due", "La conclusione"].flatMap((s, i) => {
+        ...d.heading(H("I punti chiave")),
+        ...list.flatMap((it, i) => {
           const x = 120 + (i % 2) * 700;
-          const y = 270 + Math.floor(i / 2) * 270;
-          const delay = 0.2 + i * 0.15;
+          const y = 260 + Math.floor(i / 2) * rowH;
+          const delay = 0.2 + i * 0.12;
           return [
-            d.shape({ x, y, w: 14, h: 170 }, i % 3 ? p.accent2 : p.accent, { radius: 7, enter: "slide-up", delay }),
-            d.text({ x: x + 44, y: y - 4, w: 600, h: 60 }, s, { size: 38, title: true, weight: "600", enter: "slide-left", delay }),
-            d.text({ x: x + 44, y: y + 64, w: 600, h: 110 }, "Una frase che lo spiega a chi ascolta.", { size: 28, lineHeight: 1.45, delay: delay + 0.05 }),
+            d.mark(x, y + 8, i, delay),
+            d.text({ x: x + 80, y, w: 580, h: Math.min(60, rowH * 0.35) }, it.title, { size: 34, title: true, weight: "600", enter: "slide-left", delay }),
+            d.text({ x: x + 80, y: y + Math.min(60, rowH * 0.35) + 6, w: 580, h: rowH - Math.min(60, rowH * 0.35) - 30 }, it.text ?? "", { size: 26, delay: delay + 0.05 }),
           ];
         }),
       ], "slide-left");
+    }
 
     /* ---------- Numbers and diagrams ---------- */
 
-    case "numeri":
+    case "numeri": {
+      const n = Math.max(2, Math.min(3, c.stats?.length ?? 3));
+      const stats = Array.from({ length: n }, (_, i) => nth(c.stats, i, [{ value: "120%", label: "di crescita", text: "rispetto all'anno scorso" }, { value: "3.000", label: "persone", text: "coinvolte nel progetto" }, { value: "4,8", label: "su 5", text: "la valutazione media" }][i]));
+      const w = 1360 / n;
       return d.page("Numeri", p.contentBg, [
-        d.heading(title ?? "I numeri che contano"),
-        ...[["120%", "di crescita", "rispetto all'anno scorso"], ["3.000", "persone", "coinvolte nel progetto"], ["4,8", "su 5", "la valutazione media"]].flatMap(([n, l, s], i) => [
-          d.shape({ x: 120 + i * 470, y: 290, w: 420, h: 6 }, i === 1 ? p.accent2 : p.accent, { radius: 3, enter: "slide-left", delay: 0.15 + i * 0.2 }),
-          d.text({ x: 120 + i * 470, y: 320, w: 440, h: 170 }, n, { size: 132, title: true, color: i === 1 ? p.accent2 : p.accent, enter: "pop", delay: 0.2 + i * 0.2, lineHeight: 1 }),
-          d.text({ x: 120 + i * 470, y: 500, w: 420, h: 56 }, l, { size: 34, title: true, weight: "600", delay: 0.3 + i * 0.2 }),
-          d.text({ x: 120 + i * 470, y: 560, w: 420, h: 90 }, s, { size: 26, color: p.muted, delay: 0.35 + i * 0.2 }),
-        ]),
+        ...d.heading(H("I numeri che contano")),
+        ...stats.flatMap((s, i) => {
+          const x = 120 + i * w;
+          const color = i === 1 ? p.accent2 : p.accent;
+          return [
+            ...(d.kind === "brutale" || d.kind === "neon" || d.kind === "collage" || d.kind === "organico" ? d.card({ x, y: 270, w: w - 50, h: 470 }, i) : [d.shape({ x, y: 290, w: w - 50, h: 6 }, color, { radius: 3, enter: "slide-left", delay: 0.15 + i * 0.2 })]),
+            d.text({ x: x + 30, y: 320, w: w - 110, h: 170 }, s.value, { size: d.kind === "editoriale" ? 150 : 128, title: true, color, enter: "pop", delay: 0.2 + i * 0.2, lineHeight: 1, charWidth: 0.78 }),
+            d.text({ x: x + 30, y: 500, w: w - 110, h: 60 }, s.label, { size: 34, title: true, weight: "600", delay: 0.3 + i * 0.2 }),
+            d.text({ x: x + 30, y: 566, w: w - 110, h: 150 }, s.text ?? "", { size: 26, color: p.muted, delay: 0.35 + i * 0.2 }),
+          ];
+        }),
       ], "slide-up");
+    }
 
-    case "percentuale":
+    case "percentuale": {
+      const s = nth(c.stats, 0, { value: "72%", label: "Cosa misura questo numero", text: "Spiega in due righe perché conta. Per cambiare l'arco seleziona il cerchio colorato e regola la percentuale." });
+      const pct = Math.max(0, Math.min(100, Number.parseFloat(s.value.replace(",", ".")) || 0));
       return d.page("Percentuale", p.contentBg, [
-        d.heading(title ?? "Un dato in un colpo d'occhio"),
-        d.figure({ x: 160, y: 240, w: 540, h: 540 }, "ring", p.card, { enter: "zoom" }),
-        { ...d.figure({ x: 160, y: 240, w: 540, h: 540 }, "arc", p.accent, { enter: "zoom", delay: 0.2 }), progress: 72 } as Element,
-        d.text({ x: 200, y: 430, w: 460, h: 150 }, "72%", { size: 128, title: true, color: p.accent, align: "center", enter: "pop", delay: 0.4, lineHeight: 1 }),
-        d.text({ x: 820, y: 300, w: 660, h: 150 }, "Cosa misura questo numero", { size: 48, title: true, weight: "600", enter: "slide-up", delay: 0.3, lineHeight: 1.15 }),
-        d.text({ x: 820, y: 470, w: 640, h: 220 }, "Spiega in due righe perché conta. Per cambiare l'arco seleziona il cerchio colorato e regola la percentuale.", { size: 28, lineHeight: 1.45, delay: 0.45 }),
-        d.text({ x: 820, y: 720, w: 640, h: 40 }, "Fonte: da dove viene il dato", { size: 22, color: p.muted, delay: 0.55 }),
+        ...d.heading(H("Un dato in un colpo d'occhio")),
+        d.figure({ x: 160, y: 240, w: 540, h: 540 }, "ring", d.kind === "neon" ? p.contentAlt : p.card, { enter: "zoom" }),
+        { ...d.figure({ x: 160, y: 240, w: 540, h: 540 }, "arc", p.accent, { enter: "zoom", delay: 0.2, shadow: d.kind === "neon" }), progress: pct } as Element,
+        d.text({ x: 210, y: 430, w: 440, h: 150 }, s.value, { size: 128, title: true, color: p.accent, align: "center", enter: "pop", delay: 0.4, lineHeight: 1, charWidth: 0.78 }),
+        d.text({ x: 820, y: 280, w: 660, h: 170 }, s.label, { size: 48, title: true, weight: "600", enter: "slide-up", delay: 0.3, lineHeight: 1.15 }),
+        d.text({ x: 820, y: 470, w: 640, h: 230 }, s.text ?? "", { size: 28, delay: 0.45 }),
+        d.text({ x: 820, y: 720, w: 640, h: 60 }, c.highlight || "Fonte: da dove viene il dato", { size: 22, color: p.muted, delay: 0.55 }),
       ], "fade");
+    }
 
-    case "linea-tempo":
+    case "linea-tempo": {
+      const n = count(c, 4, 5);
+      const list = items(c, n, (i) => ({ title: ["2023", "2024", "2025", "Oggi", "Domani"][i], text: "Cosa è successo in questa tappa." }));
+      const step = 1240 / n;
       return d.page("Linea del tempo", p.contentAlt, [
-        d.heading(title ?? "Le tappe"),
-        d.shape({ x: 160, y: 497, w: 1280, h: 6 }, p.card, { radius: 3, enter: "slide-left" }),
-        ...["2023", "2024", "2025", "Oggi"].flatMap((y, i) => {
-          const cx = 280 + i * 347;
-          const delay = 0.3 + i * 0.25;
+        ...d.heading(H("Le tappe")),
+        d.shape({ x: 160, y: 497, w: 1280, h: d.kind === "brutale" ? 10 : 6 }, d.kind === "neon" ? p.accent : p.card, { radius: 3, enter: "slide-left", shadow: d.kind === "neon" }),
+        ...list.flatMap((it, i) => {
+          const cx = Math.round(160 + step / 2 + i * step);
+          const delay = 0.3 + i * 0.2;
+          const last = i === n - 1;
           return [
-            d.shape({ x: cx - 22, y: 478, w: 44, h: 44 }, i === 3 ? p.accent2 : p.accent, { ellipse: true, enter: "pop", delay }),
-            d.shape({ x: cx - 2, y: 420, w: 4, h: 50 }, p.card, { radius: 2, delay }),
-            d.text({ x: cx - 150, y: 340, w: 300, h: 70 }, y, { size: 48, title: true, color: i === 3 ? p.accent2 : p.accent, align: "center", delay }),
-            d.text({ x: cx - 150, y: 560, w: 300, h: 160 }, "Cosa è successo in questa tappa.", { size: 26, align: "center", lineHeight: 1.4, delay: delay + 0.05 }),
+            d.shape({ x: cx - 22, y: 478, w: 44, h: 44 }, last ? p.accent2 : p.accent, { ellipse: d.kind !== "brutale", radius: 0, enter: "pop", delay, ...(d.kind === "brutale" ? { stroke: p.title, strokeWidth: 4 } : {}) }),
+            d.text({ x: cx - step / 2 + 10, y: 330, w: step - 20, h: 120 }, it.title, { size: 44, title: true, color: last ? p.accent2 : p.accent, align: "center", delay }),
+            d.text({ x: cx - step / 2 + 10, y: 550, w: step - 20, h: 250 }, it.text ?? "", { size: 25, align: "center", delay: delay + 0.05 }),
           ];
         }),
       ], "slide-left");
+    }
 
-    case "processo":
+    case "processo": {
+      const n = count(c, 3, 5);
+      const list = items(c, n, (i) => ({ title: ["Si parte", "Si prepara", "Si realizza", "Si verifica", "Si migliora"][i], text: "Cosa succede in questo passaggio." }));
+      const step = 1360 / n;
       return d.page("Processo", p.contentBg, [
-        d.heading(title ?? "Come funziona, passo dopo passo"),
-        ...["Si parte", "Si prepara", "Si realizza", "Si verifica"].flatMap((s, i) => {
-          const x = 120 + i * 340;
-          const delay = 0.2 + i * 0.2;
+        ...d.heading(H("Come funziona, passo dopo passo")),
+        ...list.flatMap((it, i) => {
+          const x = Math.round(120 + i * step);
+          const delay = 0.2 + i * 0.18;
+          const chevron = d.kind === "gesso" || d.kind === "editoriale"
+            ? d.figure({ x, y: 300, w: step + 10, h: 130 }, "arrow", p.accent, { enter: "slide-left", delay, opacity: d.kind === "gesso" ? 0.85 : 1 })
+            : d.figure({ x, y: 290, w: step + 20, h: 150 }, i ? "chevron" : "arrow", i % 2 && d.kind !== "brutale" ? p.accent2 : p.accent, { enter: "slide-left", delay, ...(d.kind === "brutale" ? { stroke: p.title, strokeWidth: 4 } : {}), shadow: d.kind === "neon" || d.kind === "collage" });
           return [
-            d.figure({ x, y: 290, w: 360, h: 150 }, i ? "chevron" : "arrow", p.accent, { enter: "slide-left", delay, opacity: 1 - i * 0.12 }),
-            d.text({ x: x + (i ? 110 : 60), y: 322, w: 130, h: 90 }, String(i + 1), { size: 64, title: true, color: p.onAccent, align: "center", enter: "pop", delay: delay + 0.1, lineHeight: 1.2 }),
-            d.text({ x: x + 20, y: 480, w: 300, h: 60 }, s, { size: 34, title: true, weight: "600", delay: delay + 0.1 }),
-            d.text({ x: x + 20, y: 545, w: 290, h: 200 }, "Cosa succede in questo passaggio.", { size: 26, lineHeight: 1.4, delay: delay + 0.15 }),
+            chevron,
+            d.text({ x: x + step * 0.3, y: 318, w: step * 0.4, h: 90 }, String(i + 1), { size: 60, title: true, color: i % 2 && d.kind !== "brutale" && d.kind !== "gesso" && d.kind !== "editoriale" ? p.title : p.onAccent, align: "center", enter: "pop", delay: delay + 0.1, fit: false }),
+            d.text({ x: x + 16, y: 470, w: step - 40, h: 64 }, it.title, { size: 32, title: true, weight: "600", delay: delay + 0.1 }),
+            d.text({ x: x + 16, y: 540, w: step - 40, h: 260 }, it.text ?? "", { size: 25, delay: delay + 0.15 }),
           ];
         }),
       ], "slide-left");
+    }
 
     case "piramide": {
+      const list = items(c, 3, (i) => ({ title: ["La cima: l'obiettivo", "Il livello di mezzo", "La base: da qui si parte"][i], text: "Cosa contiene questo livello." }));
       const levels = [
         { x: 367, w: 220, y: 250, shape: "triangle" as const },
         { x: 277, w: 400, y: 426, shape: "trapezoid" as const },
         { x: 120, w: 714, y: 602, shape: "trapezoid" as const },
       ];
       return d.page("Piramide", p.contentBg, [
-        d.heading(title ?? "Dalla base alla cima"),
+        ...d.heading(H("Dalla base alla cima")),
         ...levels.flatMap((l, i) => [
-          d.figure({ x: l.x, y: l.y, w: l.w, h: 160 }, l.shape, i === 0 ? p.accent2 : p.accent, { enter: "slide-up", delay: 0.6 - i * 0.2 }),
-          ...(i ? [d.text({ x: l.x + 60, y: l.y + 56, w: l.w - 120, h: 50 }, ["", "Livello 2", "Livello 3"][i], { size: 30, weight: "600", color: p.onAccent, align: "center", delay: 0.7 - i * 0.2 })] : []),
+          d.figure({ x: l.x, y: l.y, w: l.w, h: 160 }, l.shape, i === 0 ? p.accent2 : p.accent, { enter: "slide-up", delay: 0.6 - i * 0.2, ...(d.kind === "brutale" ? { stroke: p.title, strokeWidth: 4 } : {}), shadow: d.kind === "neon" }),
           d.connector(l.x + l.w - (i ? l.w * 0.11 : l.w * 0.25) + 20, l.y + 80, 900, l.y + 80, p.card, 4, 0.8),
-          d.text({ x: 920, y: l.y + 20, w: 560, h: 56 }, ["La cima: l'obiettivo", "Il livello di mezzo", "La base: da qui si parte"][i], { size: 34, title: true, weight: "600", delay: 0.8 + i * 0.1 }),
-          d.text({ x: 920, y: l.y + 80, w: 560, h: 70 }, "Cosa contiene questo livello.", { size: 26, color: p.muted, delay: 0.85 + i * 0.1 }),
+          d.text({ x: 920, y: l.y + 10, w: 560, h: 60 }, list[i].title, { size: 32, title: true, weight: "600", delay: 0.8 + i * 0.1 }),
+          d.text({ x: 920, y: l.y + 74, w: 560, h: 90 }, list[i].text ?? "", { size: 24, color: p.muted, delay: 0.85 + i * 0.1 }),
         ]),
       ], "slide-up");
     }
 
     case "mappa": {
+      const n = count(c, 4, 6);
+      const list = items(c, n, (i) => ({ title: ph(i, "Concetto") }));
+      const slots = [{ x: 120, y: 200 }, { x: 1180, y: 200 }, { x: 120, y: 630 }, { x: 1180, y: 630 }, { x: 120, y: 415 }, { x: 1180, y: 415 }].slice(0, n);
       const center = { x: 800, y: 480 };
-      const nodes = [
-        { x: 120, y: 200 }, { x: 120, y: 415 }, { x: 120, y: 630 },
-        { x: 1180, y: 200 }, { x: 1180, y: 415 }, { x: 1180, y: 630 },
-      ];
+      const round = d.kind !== "brutale" && d.kind !== "editoriale";
       return d.page("Mappa concettuale", p.contentBg, [
-        d.text({ x: 120, y: 70, w: 1360, h: 90 }, title ?? "Tutto parte da un'idea", { size: 52, title: true, align: "center", enter: "slide-up" }),
-        ...nodes.map((n, i) => d.connector(center.x, center.y, n.x + 150, n.y + 65, p.card, 8, 0.2 + i * 0.05)),
-        d.shape({ x: 590, y: 360, w: 420, h: 240 }, p.accent, { ellipse: true, enter: "zoom", delay: 0.1, shadow: true }),
-        d.text({ x: 630, y: 440, w: 340, h: 80 }, "Idea centrale", { size: 42, title: true, color: p.onAccent, align: "center", enter: "pop", delay: 0.2 }),
-        ...nodes.flatMap((n, i) => [
-          d.shape({ x: n.x, y: n.y, w: 300, h: 130 }, p.contentAlt, { radius: 24, shadow: true, enter: "pop", delay: 0.35 + i * 0.1 }),
-          d.shape({ x: n.x, y: n.y, w: 10, h: 130 }, i % 2 ? p.accent2 : p.accent, { radius: 5, enter: "pop", delay: 0.35 + i * 0.1 }),
-          d.text({ x: n.x + 30, y: n.y + 38, w: 250, h: 56 }, `Concetto ${i + 1}`, { size: 30, weight: "600", color: p.title, delay: 0.4 + i * 0.1 }),
+        d.text({ x: 120, y: 70, w: 1360, h: 90 }, H("Tutto parte da un'idea"), { size: 52, title: true, align: "center", enter: "slide-up" }),
+        ...slots.map((s, i) => d.connector(center.x, center.y, s.x + 150, s.y + 65, d.kind === "neon" ? p.accent : p.card, d.kind === "brutale" ? 8 : 6, 0.2 + i * 0.05)),
+        d.shape({ x: 590, y: 360, w: 420, h: 240 }, p.accent, { ellipse: round, radius: 0, enter: "zoom", delay: 0.1, shadow: true, ...(d.kind === "brutale" ? { stroke: p.title, strokeWidth: 6 } : {}) }),
+        d.text({ x: 630, y: 410, w: 340, h: 140 }, c.highlight || "Idea centrale", { size: 40, title: true, color: p.onAccent, align: "center", enter: "pop", delay: 0.2 }),
+        ...slots.flatMap((s, i) => [
+          ...d.card({ x: s.x, y: s.y, w: 300, h: 130 }, i, { delay: 0.35 + i * 0.1 }),
+          d.text({ x: s.x + 24, y: s.y + 20, w: 252, h: 90 }, list[i].title, { size: 28, weight: "600", color: p.title, delay: 0.4 + i * 0.1 }),
         ]),
       ], "zoom");
     }
 
     /* ---------- Interactivity ---------- */
 
-    case "esplora":
+    case "esplora": {
+      const dots = items(c, 2, (i) => ({ title: ["Primo dettaglio", "Secondo dettaglio"][i], text: ["Spiega qui cosa si vede in questo punto.", "Aggiungi un approfondimento, una data o un esempio."][i] }));
       return d.page("Esplora", p.contentBg, [
-        d.heading(title ?? "Tocca i punti luminosi", { size: 52, box: { x: 120, y: 80, w: 1360, h: 90 } }),
-        d.photo({ x: 120, y: 200, w: 940, h: 610 }, { radius: 28 }),
-        d.hotspot(360, 340, "1", d.popup("Primo dettaglio", "Spiega qui cosa si vede in questo punto.")),
-        d.hotspot(780, 560, "2", d.popup("Secondo dettaglio", "Aggiungi un approfondimento, una data o un esempio."), 0.6),
-        d.shape({ x: 1120, y: 200, w: 360, h: 610 }, p.contentAlt, { radius: 28, shadow: true, delay: 0.2 }),
+        ...d.heading(H("Tocca i punti luminosi"), { size: 52, box: { x: 120, y: 80, w: 1360, h: 90 } }),
+        d.photoBox({ x: 120, y: 200, w: 940, h: 610 }, { rotation: d.tilt(0) }),
+        d.hotspot(360, 340, "1", d.popup(dots[0].title, dots[0].text ?? "")),
+        d.hotspot(780, 560, "2", d.popup(dots[1].title, dots[1].text ?? ""), 0.6),
+        ...d.card({ x: 1120, y: 200, w: 360, h: 610 }, 1, { delay: 0.2 }),
         d.text({ x: 1160, y: 240, w: 290, h: 60 }, "Come si usa", { size: 32, title: true, weight: "600", delay: 0.3 }),
-        d.text({ x: 1160, y: 310, w: 290, h: 440 }, "Ogni punto apre un approfondimento. Chi guarda esplora la foto al proprio ritmo.", { size: 26, lineHeight: 1.45, delay: 0.4 }),
+        d.text({ x: 1160, y: 310, w: 290, h: 470 }, c.body || "Ogni punto apre un approfondimento. Chi guarda esplora la foto al proprio ritmo.", { size: 26, delay: 0.4 }),
       ], "slide-left");
+    }
 
     case "schede": {
-      const els: Element[] = [d.heading(title ?? "Clicca le schede per scoprire")];
-      ["Curiosità", "Esempio", "Definizione"].forEach((label, i) => {
-        const hiddenText = d.text({ x: 160 + i * 470, y: 440, w: 340, h: 320 }, "Il contenuto nascosto appare qui, al clic sulla scheda.", { size: 30, lineHeight: 1.4, enter: "pop" });
+      const cards = items(c, 3, (i) => ({ title: ["Curiosità", "Esempio", "Definizione"][i], text: "Il contenuto nascosto appare qui, al clic sulla scheda." }));
+      const els: Element[] = [...d.heading(H("Clicca le schede per scoprire"))];
+      cards.forEach((it, i) => {
+        const x = 120 + i * 470;
+        const hiddenText = d.text({ x: x + 40, y: 440, w: 340, h: 330 }, it.text ?? "", { size: 28, enter: "pop" });
         hiddenText.hidden = true;
         els.push(
-          d.shape({ x: 120 + i * 470, y: 250, w: 420, h: 560 }, p.contentAlt, { radius: 32, shadow: true, enter: "slide-up", delay: 0.15 * i }),
-          d.figure({ x: 290 + i * 470, y: 560, w: 80, h: 80 }, icons[(i + 3) % icons.length], p.card, { delay: 0.3 + 0.15 * i }),
-          d.button({ x: 160 + i * 470, y: 290, w: 340, h: 110 }, label, d.reveal(hiddenText), { fill: i === 1 ? p.accent2 : p.accent, color: i === 1 ? p.title : p.onAccent, delay: 0.3 + 0.15 * i }),
+          ...d.card({ x, y: 250, w: 420, h: 560 }, i),
+          d.figure({ x: x + 170, y: 560, w: 80, h: 80 }, icons[(i + 3) % icons.length], p.card, { delay: 0.3 + 0.15 * i }),
+          d.button({ x: x + 40, y: 290, w: 340, h: 110 }, it.title, d.reveal(hiddenText), { fill: i === 1 ? p.accent2 : p.accent, color: i === 1 ? p.title : p.onAccent, delay: 0.3 + 0.15 * i }),
           hiddenText,
         );
       });
@@ -466,41 +731,55 @@ export function buildLayout(id: LayoutId, t: Theme, title?: string, opts: Layout
     /* ---------- Paths and quizzes ---------- */
 
     case "domanda": {
-      const ok = d.text({ x: 160, y: 590, w: 1280, h: 80 }, "Giusto!", { size: 44, color: p.ok, weight: "600", align: "center", enter: "pop" });
-      const ko = d.text({ x: 160, y: 590, w: 1280, h: 80 }, "Non proprio, riprova.", { size: 44, color: p.ko, weight: "600", align: "center", enter: "pop" });
+      const q = c.question ?? { text: c.heading || "Scrivi qui la domanda", right: "Risposta giusta", wrong: "Risposta sbagliata" };
+      const ok = d.text({ x: 160, y: 570, w: 1280, h: 110 }, q.explanation ? `Giusto! ${q.explanation}` : "Giusto!", { size: 38, color: p.ok, weight: "600", align: "center", enter: "pop" });
+      const ko = d.text({ x: 160, y: 570, w: 1280, h: 110 }, "Non proprio, riprova.", { size: 38, color: p.ko, weight: "600", align: "center", enter: "pop" });
       ok.hidden = true;
       ko.hidden = true;
+      // The right answer is not always on the left.
+      const swap = q.text.length % 2 === 1;
+      const btn = (x: number, label: string, target: Element, delay: number) =>
+        d.button({ x, y: 390, w: 620, h: 140 }, label, d.reveal(target), { fill: d.kind === "neon" ? p.contentAlt : p.card, color: p.title, delay, size: 30 });
       return d.page("Domanda", p.contentBg, [
-        d.shape({ x: 720, y: 90, w: 160, h: 46 }, p.accent, { radius: 23, enter: "pop" }),
-        d.text({ x: 720, y: 97, w: 160, h: 34 }, "Domanda", { size: 22, weight: "600", color: p.onAccent, align: "center", enter: "pop" }),
-        d.text({ x: 160, y: 160, w: 1280, h: 180 }, title ?? "Scrivi qui la domanda", { size: 60, title: true, align: "center", enter: "slide-up", lineHeight: 1.15 }),
-        d.button({ x: 160, y: 400, w: 620, h: 130 }, "A. Risposta giusta", d.reveal(ok), { fill: p.contentAlt, color: p.title, delay: 0.3, size: 32 }),
-        d.button({ x: 820, y: 400, w: 620, h: 130 }, "B. Risposta sbagliata", d.reveal(ko), { fill: p.contentAlt, color: p.title, delay: 0.45, size: 32 }),
+        d.shape({ x: 720, y: 90, w: 160, h: 46 }, p.accent, { radius: d.kind === "brutale" || d.kind === "editoriale" ? 0 : 23, enter: "pop", rotation: d.tilt(1) * 3 }),
+        d.text({ x: 720, y: 97, w: 160, h: 34 }, "Domanda", { size: 22, weight: "600", color: p.onAccent, align: "center", enter: "pop", fit: false }),
+        d.text({ x: 160, y: 160, w: 1280, h: 190 }, q.text, { size: 56, title: true, align: "center", enter: "slide-up", lineHeight: 1.15 }),
+        btn(swap ? 820 : 160, `${swap ? "B" : "A"}. ${q.right}`, ok, 0.3),
+        btn(swap ? 160 : 820, `${swap ? "A" : "B"}. ${q.wrong}`, ko, 0.45),
         ok,
         ko,
       ], "slide-left");
     }
 
-    case "bivio":
+    case "bivio": {
+      const ways = items(c, 2, (i) => ({ title: i ? "Strada B" : "Strada A" }));
       return d.page("Bivio", p.coverBg, [
         d.figure({ x: 700, y: 640, w: 200, h: 260 }, "triangle", p.accent2, { opacity: 0.25, enter: "slide-up" }),
-        d.text({ x: 160, y: 120, w: 1280, h: 170 }, title ?? "Che strada scegli?", { size: 72, title: true, color: p.coverTitle, align: "center", enter: "slide-up" }),
-        d.text({ x: 260, y: 300, w: 1080, h: 60 }, "Collega ogni pulsante a una pagina: Interazione, poi Vai a una pagina.", { size: 28, color: p.coverSub, align: "center", delay: 0.2 }),
-        d.button({ x: 200, y: 450, w: 560, h: 170 }, "Strada A", d.tooltip("Collegami a una pagina in Interazione"), { fill: p.accent, delay: 0.4, size: 36 }),
-        d.button({ x: 840, y: 450, w: 560, h: 170 }, "Strada B", d.tooltip("Collegami a una pagina in Interazione"), { fill: p.accent2, color: p.title, delay: 0.55, size: 36 }),
+        d.text({ x: 160, y: 120, w: 1280, h: 170 }, H("Che strada scegli?"), { size: 72, title: true, color: p.coverTitle, align: "center", enter: "slide-up" }),
+        d.text({ x: 260, y: 300, w: 1080, h: 60 }, c.subtitle || "Collega ogni pulsante a una pagina: Interazione, poi Vai a una pagina.", { size: 28, color: p.coverSub, align: "center", delay: 0.2 }),
+        d.button({ x: 200, y: 450, w: 560, h: 170 }, ways[0].title, d.tooltip("Collegami a una pagina in Interazione"), { fill: p.accent, delay: 0.4, size: 36 }),
+        d.button({ x: 840, y: 450, w: 560, h: 170 }, ways[1].title, d.tooltip("Collegami a una pagina in Interazione"), { fill: p.accent2, color: p.title, delay: 0.55, size: 36 }),
       ], "zoom", true);
+    }
 
     /* ---------- Present and share ---------- */
 
-    case "contatti":
+    case "contatti": {
+      const rows = items(c, 3, (i) => ({ title: ["nome@esempio.it", "www.ilmiosito.it", "Via Roma 1, Milano"][i] }));
       return d.page("Contatti", p.coverBg, [
-        d.figure({ x: 1100, y: 160, w: 560, h: 560 }, "ring", p.accent, { enter: "zoom", opacity: 0.8 }),
-        d.text({ x: 120, y: 180, w: 960, h: 220 }, title ?? "Restiamo in contatto", { size: 92, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: 1.02 }),
-        ...([["bubble", "nome@esempio.it"], ["planet", "www.ilmiosito.it"], ["pin", "Via Roma 1, Milano"]] as const).flatMap(([icon, s], i) => [
+        ...heroArt(d, "cover").slice(0, 2),
+        d.text({ x: 120, y: 180, w: 900, h: 220 }, H("Restiamo in contatto"), { size: 92, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: 1.02 }),
+        ...(["bubble", "planet", "pin"] as const).flatMap((icon, i) => [
           d.figure({ x: 120, y: 450 + i * 90, w: 52, h: 52 }, icon, p.accent2, { enter: "pop", delay: 0.3 + i * 0.12 }),
-          d.text({ x: 200, y: 452 + i * 90, w: 860, h: 52 }, s, { size: 34, color: i ? p.coverSub : p.coverTitle, delay: 0.35 + i * 0.12 }),
+          d.text({ x: 200, y: 452 + i * 90, w: 820, h: 56 }, rows[i].title, { size: 34, color: i ? p.coverSub : p.coverTitle, delay: 0.35 + i * 0.12 }),
         ]),
-        d.text({ x: 120, y: 760, w: 960, h: 40 }, "Per il QR code della presentazione usa Condividi.", { size: 24, color: p.coverSub, delay: 0.6 }),
+        d.text({ x: 120, y: 760, w: 900, h: 40 }, c.subtitle || "Per il QR code della presentazione usa Condividi.", { size: 24, color: p.coverSub, delay: 0.6 }),
       ], "zoom", true);
+    }
   }
+}
+
+/** The family of layouts that can show the same content as `id`, in order. */
+export function relatedLayouts(id: string): LayoutId[] {
+  return LAYOUT_FAMILIES.find((f) => f.includes(id as LayoutId)) ?? [];
 }

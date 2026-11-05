@@ -59,3 +59,24 @@ describe("themes", () => {
     expect(round.pages.map((p) => p.background)).toEqual(doc.pages.map((p) => p.background));
   });
 });
+
+describe("every theme has its own design, not just its own colours", () => {
+  /** The shape of a page without colours, fonts or ids: what kind of element is where. */
+  const skeleton = (theme: (typeof THEMES)[number], layout: Parameters<typeof buildLayout>[0]) =>
+    JSON.stringify(buildLayout(layout, theme).elements.map((e) => [e.type, e.type === "shape" ? e.shape : "", Math.round(e.x / 20), Math.round(e.y / 20), Math.round(e.w / 20), e.type === "text" ? e.align : ""]));
+
+  it("no two themes share the same cover", () => {
+    const covers = THEMES.map((t) => skeleton(t, "copertina"));
+    expect(new Set(covers).size).toBe(THEMES.length);
+  });
+
+  it("each theme has a different signature drawing", () => {
+    expect(new Set(THEMES.map((t) => t.signature)).size).toBe(THEMES.length);
+  });
+
+  it("art directions change the content pages too", () => {
+    const kinds = new Map(THEMES.map((t) => [t.kind, t]));
+    const pages = [...kinds.values()].map((t) => skeleton(t, "processo"));
+    expect(new Set(pages).size).toBe(kinds.size);
+  });
+});

@@ -9,7 +9,31 @@ export function paint(c1: string, c2?: string, angle = 135) {
   return c2 ? `linear-gradient(${angle}deg, ${c1}, ${c2})` : c1;
 }
 
-export const pageBackground = (p: Page) => paint(p.background, p.color2, p.angle);
+/** Texture layers drawn over the page colour, light on dark pages and dark on light ones. */
+function patternLayers(pattern: Page["pattern"], background: string) {
+  if (!pattern || pattern === "none") return "";
+  const ink = isLight(background) ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.1)";
+  switch (pattern) {
+    case "dots":
+      return `radial-gradient(circle, ${ink} 2px, transparent 2.6px) 0 0/36px 36px`;
+    case "grid":
+      return `linear-gradient(${ink} 1px, transparent 1px) 0 0/56px 56px, linear-gradient(90deg, ${ink} 1px, transparent 1px) 0 0/56px 56px`;
+    case "lines":
+      return `repeating-linear-gradient(-45deg, ${ink} 0 2px, transparent 2px 24px)`;
+    case "stars":
+      return `radial-gradient(circle at 20% 30%, ${ink} 1.5px, transparent 2.2px) 0 0/90px 90px, radial-gradient(circle at 70% 75%, ${ink} 1px, transparent 1.6px) 0 0/130px 130px`;
+    case "grain": {
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 ${isLight(background) ? 0 : 1} 0 0 0 0 ${isLight(background) ? 0 : 1} 0 0 0 0 ${isLight(background) ? 0 : 1} 0 0 0 0.09 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>`;
+      return `url("data:image/svg+xml,${svg.replace(/"/g, "'").replace(/</g, "%3C").replace(/>/g, "%3E")}") 0 0/160px 160px`;
+    }
+  }
+}
+
+export const pageBackground = (p: Page) => {
+  const layers = patternLayers(p.pattern, p.background);
+  const base = paint(p.background, p.color2, p.angle);
+  return layers ? `${layers}, ${base}` : base;
+};
 
 /** Pure visual rendering of one element, in canvas units. Text is always rendered as text, never HTML. */
 export function ElementBody({ el }: { el: Element }) {
@@ -100,30 +124,6 @@ export function ElementBody({ el }: { el: Element }) {
             referrerPolicy="no-referrer"
             style={{ width: "100%", height: "100%", objectFit: el.fit, borderRadius: el.radius, pointerEvents: "none", ...strokeStyle(el.stroke, el.strokeWidth) }}
           />
-          {el.credit && (
-            // Author and licence of a free photo: required by its licence, so it is always visible.
-            <span
-              style={{
-                position: "absolute",
-                right: Math.max(8, Math.min(el.radius, 40)),
-                bottom: Math.max(8, Math.min(el.radius, 40)),
-                maxWidth: "80%",
-                padding: "3px 10px",
-                borderRadius: 999,
-                background: "rgba(0,0,0,0.55)",
-                color: "#fff",
-                fontSize: Math.max(13, Math.min(18, el.w / 45)),
-                fontFamily: FONT_FAMILY.clean,
-                lineHeight: 1.3,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                pointerEvents: "none",
-              }}
-            >
-              {el.credit}
-            </span>
-          )}
         </div>
       );
     case "button":

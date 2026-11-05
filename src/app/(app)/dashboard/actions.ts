@@ -9,9 +9,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { requireUser, touchSession } from "@/lib/auth/session";
 import { countAll, docBytes, getOwnedPresentation, MAX_PRESENTATIONS, STORAGE_QUOTA_BYTES, storageUsed } from "@/lib/presentations";
 import { buildTemplate, isTemplateId, TEMPLATES } from "@/lib/editor/templates";
-import { buildDeck, planDeck } from "@/lib/editor/deck";
-import { documentSchema } from "@/lib/editor/schema";
-import { addFreePhotos } from "@/lib/images/fill";
+import { createDeckDocument } from "@/lib/assistant/create";
 import type { Prisma } from "@/generated/prisma/client";
 
 const idSchema = z.string().regex(/^[a-z0-9]{20,32}$/);
@@ -56,15 +54,13 @@ export async function createFromTopicAction(formData: FormData) {
   await touchSession();
   const topic = titleSchema.safeParse(formData.get("topic"));
   if (!topic.success) redirect("/dashboard");
-  const wantsPhotos = formData.get("photos") === "on";
-  const spec = planDeck(topic.data, { photos: wantsPhotos });
-  let content = buildDeck(spec);
-  if (spec.photos && (await rateLimit(`images:${user.id}`, 60, 60 * 60))) content = (await addFreePhotos(content, spec.photos)).doc;
-  if (!documentSchema.safeParse(content).success) throw new Error("Invalid document");
-  if (!(await canAdd(user.id, docBytes(content)))) throw new Error("Limit reached");
+  // Limits first (with an empty document), so nobody spends AI work on a presentation that cannot be saved.
+  if (!(await canAdd(user.id, 0))) redirect("/dashboard?limite=1");
+  const { title, doc: content } = await createDeckDocument(user.id, { topic: topic.data, photos: formData.get("photos") === "on" });
+  if ((await storageUsed(user.id)) + docBytes(content) > STORAGE_QUOTA_BYTES) redirect("/dashboard?limite=1");
 
   const p = await db.presentation.create({
-    data: { ownerId: user.id, title: spec.title, content: content as Prisma.InputJsonValue },
+    data: { ownerId: user.id, title, content: content as Prisma.InputJsonValue },
     select: { id: true },
   });
   redirect(`/editor/${p.id}`);

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { THEME_IDS } from "./themes";
-import { SHAPE_IDS } from "./shapes";
+import { SHAPE_IDS, SVG_SHAPE_IDS, type SvgShape } from "./shapes";
 import { MOTIF_IDS } from "./motif-ids";
+import { pageContentSchema } from "./content";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -237,6 +238,10 @@ export const page = z.object({
   ...gradient,
   transition: z.enum(TRANSITIONS).default("fade"),
   elements: z.array(element).max(MAX_ELEMENTS_PER_PAGE),
+  /** Background texture drawn over the colour. */
+  pattern: z.enum(["none", "dots", "grid", "lines", "stars", "grain"]).optional(),
+  /** The words and the layout the page was drawn from: lets "Cambia impaginazione" redraw it. */
+  source: z.object({ layout: z.string().regex(/^[a-z-]{2,30}$/), content: pageContentSchema }).optional(),
   /** Speaker notes: shown only to the presenter, never in the public viewer. */
   notes: plainText(5000).optional(),
 });
@@ -248,6 +253,12 @@ export const settings = z.object({
   theme: z.enum(THEME_IDS).optional(),
   /** Topic of the presentation: decides the decorations at the page margins. */
   motif: z.enum(MOTIF_IDS).optional(),
+  /** Drawings chosen for this presentation's topic (by Zib or by hand): they win over the preset topic. */
+  decor: z.array(z.enum(SVG_SHAPE_IDS as [SvgShape, ...SvgShape[]])).min(1).max(6).optional(),
+  /** Main colours picked by hand over the theme's own. */
+  colors: z.object({ accent: color.optional(), accent2: color.optional() }).optional(),
+  /** How many decorations per page: 0 none, 1 few, 2 normal, 3 many. */
+  decorDensity: z.number().int().min(0).max(3).optional(),
 });
 
 export const documentSchema = z

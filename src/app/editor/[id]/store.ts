@@ -1,10 +1,11 @@
 import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
-import { buildLayout, type LayoutId } from "@/lib/editor/layouts";
+import { buildLayout, isLayoutId, relatedLayouts, type LayoutId } from "@/lib/editor/layouts";
+import type { Pattern } from "@/lib/editor/themes";
 import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
 import { applyMotif, decoratePage, type MotifId } from "@/lib/editor/motifs";
-import { photoElement, type FreePhoto } from "@/lib/editor/photos";
+import { photoElement, withCreditsPage, type FreePhoto } from "@/lib/editor/photos";
 
 export type EditorState = {
   doc: PresentationDoc;
@@ -35,6 +36,12 @@ export type Action =
   | { type: "settings"; autoAdvance: number }
   | { type: "apply-theme"; theme: ThemeId }
   | { type: "apply-motif"; motif: MotifId | undefined }
+  | { type: "decor-density"; density: number }
+  /** Redraw the current page with the next layout that can show the same words. */
+  | { type: "relayout" }
+  | { type: "pattern"; pattern: Pattern; all?: boolean }
+  /** Replace one of the main colours everywhere it is used. */
+  | { type: "main-color"; role: "accent" | "accent2"; color: string }
   /** A free photo: replaces the selected photo space or image, otherwise it is added to the page. */
   | { type: "set-photo"; photo: FreePhoto; targetId?: string | null }
   | { type: "undo" }
@@ -241,16 +248,52 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return commit(state, applyTheme(state.doc, action.theme));
     case "apply-motif":
       return commit(state, applyMotif(state.doc, action.motif), { selectedId: null });
+    case "decor-density":
+      return commit(state, applyMotif(state.doc, state.doc.settings?.motif, { density: action.density }), { selectedId: null });
+    case "relayout": {
+      const src = page.source;
+      const family = src ? relatedLayouts(src.layout) : [];
+      if (!src || family.length < 2) return state;
+      const next = family[(family.indexOf(src.layout as LayoutId) + 1) % family.length];
+      if (!isLayoutId(next)) return state;
+      const theme = getTheme(state.doc.settings?.theme);
+      const { motif, decor, decorDensity } = state.doc.settings ?? {};
+      const built = buildLayout(next, theme, src.content, { motif, icons: decor });
+      const idx = state.doc.pages.findIndex((p) => p.id === page.id);
+      const drawn = decor?.length || motif ? decoratePage(built, decor?.length ? decor : motif!, theme, idx, decorDensity ?? 2) : built;
+      const redrawn = { ...drawn, id: page.id, notes: page.notes, transition: page.transition };
+      return commit(state, mapPage(state.doc, page.id, () => redrawn), { selectedId: null });
+    }
+    case "pattern":
+      return commit(state, { ...state.doc, pages: state.doc.pages.map((p) => (action.all || p.id === page.id ? { ...p, pattern: action.pattern } : p)) });
+    case "main-color": {
+      const from = (state.doc.settings?.colors?.[action.role] ?? getTheme(state.doc.settings?.theme).palette[action.role]).toLowerCase();
+      const to = action.color.toLowerCase();
+      if (from === to) return state;
+      const swap = (c?: string) => (c && c.toLowerCase() === from ? to : c);
+      const pages = state.doc.pages.map((p) => ({
+        ...p,
+        background: swap(p.background)!,
+        ...(p.color2 ? { color2: swap(p.color2) } : {}),
+        elements: p.elements.map((e) => {
+          const r = { ...e } as Record<string, unknown>;
+          for (const k of ["fill", "color", "color2", "stroke"]) if (typeof r[k] === "string") r[k] = swap(r[k] as string);
+          return r as Element;
+        }),
+      }));
+      const settings = { ...state.doc.settings, autoAdvance: state.doc.settings?.autoAdvance ?? 0, colors: { ...state.doc.settings?.colors, [action.role]: to } };
+      return commit(state, { ...state.doc, pages, settings });
+    }
     case "set-photo": {
       const target = page.elements.find((e) => e.id === action.targetId && (e.type === "image" || (e.type === "shape" && e.photoSlot)));
       if (target) {
-        return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) })), { selectedId: target.id });
+        return commit(state, withCreditsPage(mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) }))), { selectedId: target.id });
       }
       const el = photoElement(createElement("image"), action.photo);
       // Keep the photo's own proportions inside a 640-wide box.
       el.h = Math.round(Math.min(640, (640 * action.photo.height) / action.photo.width));
       el.y = Math.round((CANVAS_H - el.h) / 2);
-      return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
+      return commit(state, withCreditsPage(mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] }))), { selectedId: el.id });
     }
     case "undo": {
       const prev = state.past.at(-1);

@@ -83,7 +83,12 @@ describe("outlines with topic and photos", () => {
     const filled = fillPhotoSlots(doc, [photo, photo]);
     expect(countPhotoSlots(filled)).toBe(n - 2);
     const img = filled.pages.flatMap((p) => p.elements).find((e) => e.type === "image");
-    expect(img).toMatchObject({ credit: "Foto: Ada · CC BY-SA 4.0 · Wikimedia Commons", fit: "cover" });
+    expect(img).toMatchObject({ credit: "Ada · CC BY-SA 4.0 · Wikimedia Commons", fit: "cover" });
+    // The credits live on a last page, not on the photos.
+    const last = filled.pages.at(-1)!;
+    expect(last.name).toBe("Crediti foto");
+    expect(JSON.stringify(last)).toContain("Ada · CC BY-SA 4.0");
+    expect(fillPhotoSlots(filled, []).pages.filter((p) => p.name === "Crediti foto")).toHaveLength(1);
     expect(documentSchema.safeParse(filled).success).toBe(true);
   });
 

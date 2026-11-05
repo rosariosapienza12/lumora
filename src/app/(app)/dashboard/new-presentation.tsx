@@ -17,7 +17,7 @@ function CreateButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Creazione…" : "Crea presentazione"}
+      {pending ? "Zib sta scrivendo…" : "Crea presentazione"}
     </Button>
   );
 }
@@ -75,9 +75,12 @@ export function NewPresentation() {
               </div>
               {mode === "topic" ? (
                 <>
-                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                    Di cosa parla la presentazione?
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="new-topic" className="text-sm font-semibold">
+                      Di cosa parla la presentazione?
+                    </label>
                     <input
+                      id="new-topic"
                       name="topic"
                       value={topic}
                       onChange={(e) => setTopic(e.target.value)}
@@ -85,9 +88,9 @@ export function NewPresentation() {
                       required
                       minLength={2}
                       placeholder="Per esempio: il riciclo, la Rivoluzione francese, la mia startup"
-                      className="rounded-xl border border-line bg-paper px-3.5 py-2.5 font-normal outline-none focus:border-violet"
+                      className="rounded-xl border border-line bg-paper px-3.5 py-2.5 outline-none focus:border-violet"
                     />
-                  </label>
+                  </div>
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" name="photos" checked={photos} onChange={(e) => setPhotos(e.target.checked)} className="accent-violet" />
                     Con immagini: aggiungi foto gratis da Wikimedia Commons (con autore e licenza)

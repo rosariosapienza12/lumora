@@ -1,4 +1,6 @@
 import type { Element, Page, PresentationDoc } from "./schema";
+import { newId } from "./schema";
+import { getTheme } from "./themes";
 
 /**
  * Free photos (from Wikimedia Commons) inside a presentation. Pure functions,
@@ -21,8 +23,37 @@ export type FreePhoto = {
   pageUrl: string;
 };
 
-/** The credit line shown on the photo, as the licences ask: author, licence, source. */
-export const creditOf = (p: Pick<FreePhoto, "author" | "license">) => `Foto: ${p.author} · ${p.license} · Wikimedia Commons`.slice(0, 300);
+/** The credit line of a photo, as the licences ask: author, licence, source. */
+export const creditOf = (p: Pick<FreePhoto, "author" | "license">) => `${p.author} · ${p.license} · Wikimedia Commons`.slice(0, 300);
+
+export const CREDITS_PAGE = "Crediti foto";
+
+/**
+ * Free licences such as CC BY-SA ask to credit the author. Instead of writing
+ * it on the photo, Lumora keeps a "Crediti foto" page at the end with every
+ * photo used: rebuilt whenever photos change, removed when there are none.
+ */
+export function withCreditsPage(doc: PresentationDoc): PresentationDoc {
+  const pages = doc.pages.filter((p) => p.name !== CREDITS_PAGE);
+  const credits = [...new Set(pages.flatMap((p) => p.elements.flatMap((e) => (e.type === "image" && e.credit ? [`${e.alt || "Foto"}: ${e.credit}`] : []))))];
+  if (!credits.length) return pages.length === doc.pages.length ? doc : { ...doc, pages };
+  const t = getTheme(doc.settings?.theme);
+  const p = t.palette;
+  const size = credits.length > 10 ? 18 : 22;
+  const base = { rotation: 0, opacity: 1, hidden: false, locked: false, interaction: null, animation: { enter: "fade" as const, emphasis: "none" as const, duration: 0.6, delay: 0 } };
+  const page: Page = {
+    id: newId(),
+    name: CREDITS_PAGE,
+    background: p.contentBg,
+    transition: "fade",
+    elements: [
+      { ...base, id: newId(), type: "text", x: 120, y: 90, w: 1360, h: 90, text: CREDITS_PAGE, fontSize: 56, color: p.title, align: "left", weight: "800", font: t.fonts.title },
+      { ...base, id: newId(), type: "text", x: 120, y: 190, w: 1360, h: 60, text: "Foto con licenza libera da Wikimedia Commons. Grazie agli autori.", fontSize: 26, color: p.muted, align: "left", weight: "400", font: t.fonts.body },
+      { ...base, id: newId(), type: "text", x: 120, y: 270, w: 1360, h: 560, text: credits.slice(0, 40).join("\n"), fontSize: size, color: p.text, align: "left", weight: "400", font: t.fonts.body, lineHeight: 1.5 },
+    ],
+  };
+  return { ...doc, pages: [...pages, page] };
+}
 
 /** An image element that takes the place (and the size, animation and interaction) of `target`. */
 export function photoElement(target: Element, photo: Pick<FreePhoto, "src" | "title" | "author" | "license" | "pageUrl">): Element {
@@ -63,5 +94,5 @@ export function fillPhotoSlots(doc: PresentationDoc, photos: FreePhoto[]): Prese
       elements: p.elements.map((e) => (isPhotoSlot(e) && next < photos.length ? photoElement(e, photos[next++]) : e)),
     }),
   );
-  return { ...doc, pages };
+  return withCreditsPage({ ...doc, pages });
 }

@@ -4,10 +4,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireUser } from "@/lib/auth/session";
-import { buildDeck, parseDeck } from "@/lib/editor/deck";
-import { documentSchema } from "@/lib/editor/schema";
+import { parseDeck } from "@/lib/editor/deck";
 import { countAll, docBytes, MAX_PRESENTATIONS, STORAGE_QUOTA_BYTES, storageUsed } from "@/lib/presentations";
-import { addFreePhotos } from "@/lib/images/fill";
+import { createDeckDocument } from "@/lib/assistant/create";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Creates a presentation from an outline proposed by Zib, after the user confirmed it. */
@@ -16,15 +15,11 @@ export async function createFromDeckAction(formData: FormData) {
   const spec = parseDeck(formData.get("d"));
   if (!spec) redirect("/dashboard");
 
-  let doc = buildDeck(spec);
-  if (spec.photos && (await rateLimit(`images:${user.id}`, 60, 60 * 60))) doc = (await addFreePhotos(doc, spec.photos)).doc;
-  // The outline is user-controlled input: the built document goes through the same validation as every save.
-  if (!documentSchema.safeParse(doc).success) redirect("/dashboard");
-  const allowed =
-    (await rateLimit(`create:${user.id}`, 30, 60 * 60)) &&
-    (await countAll(user.id)) < MAX_PRESENTATIONS &&
-    (await storageUsed(user.id)) + docBytes(doc) <= STORAGE_QUOTA_BYTES;
-  if (!allowed) redirect("/dashboard?limite=1");
+  // Limits first, so nobody spends AI work on a presentation that cannot be saved.
+  if (!(await rateLimit(`create:${user.id}`, 30, 60 * 60)) || (await countAll(user.id)) >= MAX_PRESENTATIONS) redirect("/dashboard?limite=1");
+  // Zib writes the real content of every page (or, without AI, builds the outline).
+  const { doc } = await createDeckDocument(user.id, { topic: spec.title, outline: spec, photos: Boolean(spec.photos) });
+  if ((await storageUsed(user.id)) + docBytes(doc) > STORAGE_QUOTA_BYTES) redirect("/dashboard?limite=1");
 
   const p = await db.presentation.create({
     data: { ownerId: user.id, title: spec.title, content: doc as Prisma.InputJsonValue },
