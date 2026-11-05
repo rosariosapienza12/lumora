@@ -188,6 +188,13 @@ body {
 .solar-planet[data-lit] .solar-body {
   box-shadow: 0 0 0 2px rgba(255, 233, 176, 0.9), 0 0 22px 6px rgba(255, 181, 71, 0.75), 0 0 60px 14px rgba(140, 118, 255, 0.35);
 }
+/* In 3D the planets, their glow and the highlight ring are drawn by WebGL: the buttons stay invisible
+   (no second outline around the planet's silhouette). */
+.solar-stage[data-gl] .solar-planet .solar-body,
+.solar-stage[data-gl] .solar-planet[data-lit] .solar-body {
+  box-shadow: none;
+  scale: none;
+}
 .solar-label {
   color: rgba(255, 255, 255, 0.92);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)), rgba(10, 8, 26, 0.6);

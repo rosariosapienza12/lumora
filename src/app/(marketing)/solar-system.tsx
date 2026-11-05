@@ -3,6 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { PlanetCanvas } from "@/components/planets/planet-canvas";
+import { SolarGL, type OrbitDraw, type PlanetDraw } from "@/components/planets/solar-gl";
+import { loadPlanetTexture } from "@/components/planets/textures";
 import { FEATURES, tourAnchor, type Feature } from "./features";
 
 /**
@@ -13,8 +15,23 @@ import { FEATURES, tourAnchor, type Feature } from "./features";
  * re-render per frame).
  */
 
-/** Vertical squash of the orbit plane: we look at it from above, at an angle. */
+/** Vertical squash of the orbit plane: we look at it from above, at an angle (sine of the camera pitch). */
 const FLATTEN = 0.36;
+const PITCH = Math.asin(FLATTEN);
+/** Camera distance in system radii: closer means stronger perspective (near planets grow, far ones shrink). */
+const CAM = 3.4;
+
+/** World (orbit plane x-z, y up, z towards the viewer) to view rotation, column-major: M = Rx(pitch) Ry(yaw). */
+function viewMatrix(pitch: number, yaw: number) {
+  const [cp, sp, cy, sy] = [Math.cos(pitch), Math.sin(pitch), Math.cos(yaw), Math.sin(yaw)];
+  return new Float32Array([cy, sp * sy, -cp * sy, 0, cp, sp, sy, -sp * cy, cp * cy]);
+}
+const mul = (m: Float32Array, x: number, y: number, z: number) => [m[0] * x + m[3] * y + m[6] * z, m[1] * x + m[4] * y + m[7] * z, m[2] * x + m[5] * y + m[8] * z];
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+};
 /** How long the card shows its skeleton before the content. */
 const FOCUS_SECONDS = 0.75;
 /** Orbit time added per pixel dragged. */
@@ -36,7 +53,9 @@ function geometry(w: number, h: number, clear: number) {
   const mobile = w < 768;
   // The plane sits below the hero text (`clear`), with room at the bottom for
   // the front planets, their names and the scroll cue.
-  const fit = (cy: number) => Math.min(w * (mobile ? 0.44 : 0.4), (h - cy - 95) / 0.42);
+  // Perspective brings the nearest planets lower (and bigger) than a flat plane would.
+  // Near planets also spread sideways: a slightly narrower system keeps them and their names on screen.
+  const fit = (cy: number) => Math.min(w * (mobile ? 0.4 : 0.36), (h - cy - 95) / 0.56);
   let cy = h * (mobile ? 0.66 : 0.64);
   const R = fit(cy);
   // Side planets sit at the height of the sun: keep them below the text.
@@ -63,6 +82,10 @@ export function SolarSystem() {
   const orbitRefs = useRef<(SVGEllipseElement | null)[]>([]);
   const parallaxRef = useRef<HTMLDivElement>(null);
   const starsRef = useRef<HTMLDivElement>(null);
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
+  /** The 3D renderer; null when WebGL2 is missing (the planets are then drawn one by one in 2D). */
+  const glRef = useRef<SolarGL | null>(null);
+  const [flat, setFlat] = useState(false);
   /** Index of the open planet, or -1. */
   const focusRef = useRef(-1);
   /** Index of the hovered or focused planet, or -1. */
@@ -100,6 +123,30 @@ export function SolarSystem() {
     setActive(f);
   };
 
+  // The 3D renderer and its textures: a rough surface at once, sharper ones as they arrive.
+  useEffect(() => {
+    const canvas = glCanvasRef.current;
+    if (!canvas) return;
+    const renderer = SolarGL.create(canvas);
+    if (!renderer) {
+      queueMicrotask(() => setFlat(true));
+      return;
+    }
+    glRef.current = renderer;
+    let cancelled = false;
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    const sharp = !touch && window.innerWidth * Math.min(2, window.devicePixelRatio || 1) > 1800;
+    const kinds = [...new Set(FEATURES.map((f) => f.kind))];
+    for (const w of sharp ? [256, 512, 1024] : [256, 512]) {
+      for (const k of kinds) loadPlanetTexture(k, w).then((t) => !cancelled && renderer.setTexture(k, t));
+    }
+    return () => {
+      cancelled = true;
+      renderer.destroy();
+      glRef.current = null;
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const node = stageRef.current;
     if (!node) return;
@@ -128,13 +175,18 @@ export function SolarSystem() {
     let tiltX = 0;
     let tiltY = 0;
     let lastHighlight = -2;
-    // What the DOM currently shows: frames where nothing moved write nothing.
-    let drawnTime = NaN;
-    let drawnHighlight = -2;
-    let drawnHover = -2;
     let last = performance.now();
+    const t0 = last;
+    const hoverAmt = FEATURES.map(() => 0);
+    const glow = FEATURES.map((f) => hexToRgb(f.glow));
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    let lastGl = 0;
+    let onScreen = true;
+    const io = new IntersectionObserver(([e]) => (onScreen = e.isIntersecting));
+    if (stageRef.current) io.observe(stageRef.current);
 
     const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const drag = dragRef.current;
@@ -156,38 +208,69 @@ export function SolarSystem() {
         if (Math.abs(orbitTime) < 0.001) orbitTime = 0;
       }
 
+      const gl = glRef.current;
+      // The pointer turns the camera a little: real parallax, near planets move more than far ones.
       const p = pointerRef.current;
-      if (!reduce && (Math.abs(p.x - tiltX) > 0.002 || Math.abs(p.y - tiltY) > 0.002)) {
+      if (!reduce) {
         tiltX += (p.x - tiltX) * Math.min(1, dt * 3);
         tiltY += (p.y - tiltY) * Math.min(1, dt * 3);
-        if (parallaxRef.current) parallaxRef.current.style.transform = `translate(${(-tiltX * 16).toFixed(1)}px, ${(-tiltY * 10).toFixed(1)}px)`;
         if (starsRef.current) starsRef.current.style.transform = `translate(${(tiltX * 8).toFixed(1)}px, ${(tiltY * 5).toFixed(1)}px)`;
+        if (!gl && parallaxRef.current) parallaxRef.current.style.transform = `translate(${(-tiltX * 16).toFixed(1)}px, ${(-tiltY * 10).toFixed(1)}px)`;
       }
+      const view = gl ? viewMatrix(PITCH + tiltY * 0.07, tiltX * 0.16) : viewMatrix(PITCH, 0);
+      // Without 3D the plane stays flat, as before; with it, perspective.
+      const cam = gl ? CAM : 1e6;
+      const project = (x: number, z: number) => {
+        const [vx, vy, vz] = mul(view, x, 0, z);
+        const s = cam / (cam - vz);
+        return { x: cx + vx * R * s, y: cy - vy * R * s, s, z: vz };
+      };
 
       // The planet in the spotlight: the open one, else the hovered one.
       const highlight = focus >= 0 ? focus : hover;
-      if (orbitTime === drawnTime && highlight === drawnHighlight && hover === drawnHover) {
-        raf = requestAnimationFrame(frame);
-        return;
-      }
-      drawnTime = orbitTime;
-      drawnHighlight = highlight;
-      drawnHover = hover;
+      const elapsed = reduce ? 0 : (now - t0) / 1000;
 
-      // Planet positions on the flattened plane.
       const labels: { i: number; depth: number; x: number; y: number; w: number }[] = [];
+      const discs: { i: number; x: number; y: number; r: number }[] = [];
+      const planets: (PlanetDraw & { z: number })[] = [];
       FEATURES.forEach((f, i) => {
         const a = rest[i] + (orbitTime / f.period) * Math.PI * 2;
-        const x = cx + Math.cos(a) * f.orbit * R;
-        const y = cy + Math.sin(a) * f.orbit * R * FLATTEN;
+        const wx = Math.cos(a) * f.orbit;
+        const wz = Math.sin(a) * f.orbit;
+        const pr = project(wx, wz);
+        hoverAmt[i] += ((i === highlight ? 1 : 0) - hoverAmt[i]) * Math.min(1, dt * 8);
+        const d = gl ? px * pr.s * (1 + hoverAmt[i] * 0.18) : px;
         const depth = (Math.sin(a) + 1) / 2;
-        labels.push({ i, depth, x, y: y + px / 2 + 14, w: f.title.length * 6.6 + 30 });
+        const fade = Math.min(1, Math.max(0.15, (pr.y - d / 2 - clear + 40) / 40));
+        labels.push({ i, depth, x: pr.x, y: pr.y + d / 2 + 14, w: f.title.length * 6.6 + 30 });
+        discs.push({ i, x: pr.x, y: pr.y, r: d / 2 });
         const el = planetRefs.current[i];
         if (el) {
-          el.style.transform = `translate3d(${(x - px / 2).toFixed(1)}px, ${(y - px / 2).toFixed(1)}px, 0)`;
+          el.style.transform = `translate3d(${(pr.x - d / 2).toFixed(1)}px, ${(pr.y - d / 2).toFixed(1)}px, 0)`;
+          if (gl) {
+            el.style.width = `${d.toFixed(1)}px`;
+            el.style.height = `${d.toFixed(1)}px`;
+          }
           el.style.zIndex = String(i === hover ? 35 : Math.round(10 + depth * 20));
-          el.style.opacity = String(Math.min(1, Math.max(0.15, (y - px / 2 - clear + 40) / 40)));
+          el.style.opacity = String(fade);
           el.toggleAttribute("data-lit", i === highlight);
+        }
+        if (gl) {
+          const [lx, ly, lz] = mul(view, -wx, 0, -wz);
+          const ll = Math.hypot(lx, ly, lz) || 1;
+          planets.push({
+            kind: f.kind,
+            x: pr.x,
+            y: pr.y,
+            r: d / 2,
+            light: [lx / ll, ly / ll, lz / ll],
+            phase: elapsed / (f.period / 2),
+            tilt: f.kind === "rose" ? 0.6 : 0.22,
+            hover: hoverAmt[i],
+            glow: glow[i],
+            fade,
+            z: pr.z,
+          });
         }
       });
 
@@ -202,17 +285,73 @@ export function SolarSystem() {
 
       // Names never overlap: nearest planets claim their label space first, the others fade.
       const placed: { x: number; y: number; w: number }[] = [];
-      for (const l of labels.sort((p, q) => q.depth - p.depth)) {
-        const hit = placed.some((p) => Math.abs(p.x - l.x) < (p.w + l.w) / 2 && Math.abs(p.y - l.y) < 26);
+      for (const l of labels.sort((a, b) => b.depth - a.depth)) {
+        // Names near the screen edge slide inwards instead of being cut.
+        const dx = Math.max(10 + l.w / 2 - l.x, Math.min(0, size.w - 10 - l.w / 2 - l.x));
+        planetRefs.current[l.i]?.style.setProperty("--label-dx", `${dx.toFixed(1)}px`);
+        const lx = l.x + dx;
+        // A name never covers another name or another planet.
+        const hit =
+          placed.some((q) => Math.abs(q.x - lx) < (q.w + l.w) / 2 && Math.abs(q.y - l.y) < 26) ||
+          discs.some((c) => c.i !== l.i && Math.abs(c.x - lx) < l.w / 2 + c.r && Math.abs(c.y - (l.y + 2)) < 12 + c.r);
         planetRefs.current[l.i]?.toggleAttribute("data-label-hidden", hit);
-        if (!hit) placed.push(l);
+        if (!hit) placed.push({ ...l, x: lx });
       }
 
-      raf = requestAnimationFrame(frame);
+      if (!gl || !onScreen || document.hidden) return;
+      // Phones draw at 30 frames a second: smooth enough, kinder to the battery.
+      if (touch && now - lastGl < 32) return;
+      lastGl = now;
+
+      // Orbits as ribbons in perspective, split where they pass behind the sun.
+      const orbitsBack: OrbitDraw[] = [];
+      const orbitsFront: OrbitDraw[] = [];
+      FEATURES.forEach((f, i) => {
+        const lit = hoverAmt[i];
+        const halves: [number, number, OrbitDraw[]][] = [
+          [Math.PI, Math.PI * 2, orbitsBack],
+          [0, Math.PI, orbitsFront],
+        ];
+        for (const [from, to, list] of halves) {
+          const N = 96;
+          const pts = new Float32Array((N + 1) * 2);
+          const al = new Float32Array(N + 1);
+          for (let k = 0; k <= N; k++) {
+            const a = from + ((to - from) * k) / N;
+            const pr = project(Math.cos(a) * f.orbit, Math.sin(a) * f.orbit);
+            pts[k * 2] = pr.x;
+            pts[k * 2 + 1] = pr.y;
+            // Far parts are fainter; lines fade out before they reach the hero text, so nothing crosses the words.
+            al[k] = (0.45 + 0.55 * ((Math.sin(a) + 1) / 2)) * Math.min(1, Math.max(0, (pr.y - clear - 6) / 28));
+          }
+          list.push({ points: pts, alphas: al, color: [1, 1, 1], width: 1, alpha: 0.1 * (1 - lit) });
+          if (lit > 0.01) {
+            list.push({ points: pts, alphas: al, color: glow[i], width: 7, alpha: 0.1 * lit });
+            list.push({ points: pts, alphas: al, color: glow[i], width: 1.6, alpha: 0.7 * lit });
+          }
+        }
+      });
+
+      const sun = project(0, 0);
+      gl.render({
+        w: size.w,
+        h: size.h,
+        dpr: Math.min(window.devicePixelRatio || 1, touch ? 2 : 2.5),
+        time: elapsed,
+        view,
+        sun: { x: sun.x, y: sun.y, r: R * 0.1 },
+        back: planets.filter((q) => q.z < 0).sort((a, b) => a.z - b.z),
+        front: planets.filter((q) => q.z >= 0).sort((a, b) => a.z - b.z),
+        orbitsBack,
+        orbitsFront,
+      });
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [size, reduce]);
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [size, reduce, flat]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || active) return;
@@ -251,6 +390,7 @@ export function SolarSystem() {
     <div
       ref={stageRef}
       data-compact={size.w > 0 && size.w < 520 ? "" : undefined}
+      data-gl={flat ? undefined : ""}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -277,9 +417,13 @@ export function SolarSystem() {
         ))}
       </div>
 
+      {/* The 3D system: sun, planets and orbits drawn by WebGL (solar-gl.ts). */}
+      <canvas ref={glCanvasRef} aria-hidden className="solar-gl pointer-events-none absolute inset-0 z-[5] h-full w-full" />
+
       {size.w > 0 && (
         <motion.div className="absolute inset-0" initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}>
           <div ref={parallaxRef} className="absolute inset-0">
+            {flat && (
             <svg aria-hidden className="absolute inset-0 h-full w-full" viewBox={`0 0 ${size.w} ${size.h}`}>
               {FEATURES.map((f, i) => (
                 <ellipse
@@ -298,6 +442,7 @@ export function SolarSystem() {
                 />
               ))}
             </svg>
+            )}
 
             {/* Sun: the light source */}
             <button
@@ -307,15 +452,19 @@ export function SolarSystem() {
               className="absolute z-[19] grid cursor-pointer place-items-center"
               style={{ left: cx, top: cy, width: R * 0.2, height: R * 0.2, transform: "translate(-50%, -50%)" }}
             >
-              <span aria-hidden className="solar-corona absolute inset-[-60%] rounded-full" />
-              <span aria-hidden className="solar-flare absolute inset-[-25%] rounded-full" />
-              <span
-                className="relative block h-full w-full rounded-full"
-                style={{
-                  background: "radial-gradient(circle at 40% 38%, #fffbe6 0%, #ffe38a 22%, #ffb547 52%, #ff7a1a 82%, #e2450c 100%)",
-                  boxShadow: "0 0 40px 12px rgba(255,181,71,0.6), 0 0 120px 40px rgba(255,122,26,0.3)",
-                }}
-              />
+              {flat && (
+                <>
+                  <span aria-hidden className="solar-corona absolute inset-[-60%] rounded-full" />
+                  <span aria-hidden className="solar-flare absolute inset-[-25%] rounded-full" />
+                  <span
+                    className="relative block h-full w-full rounded-full"
+                    style={{
+                      background: "radial-gradient(circle at 40% 38%, #fffbe6 0%, #ffe38a 22%, #ffb547 52%, #ff7a1a 82%, #e2450c 100%)",
+                      boxShadow: "0 0 40px 12px rgba(255,181,71,0.6), 0 0 120px 40px rgba(255,122,26,0.3)",
+                    }}
+                  />
+                </>
+              )}
             </button>
 
             {FEATURES.map((f, i) => (
@@ -336,9 +485,9 @@ export function SolarSystem() {
               >
                 <span aria-hidden className="solar-burst absolute inset-0 rounded-full" />
                 <span className="solar-body relative block h-full w-full rounded-full transition-[scale,box-shadow] duration-300 group-hover:scale-125">
-                  <PlanetCanvas kind={f.kind} size={px} spin={f.period / 2} tilt={f.kind === "rose" ? 0.6 : 0.22} className="pointer-events-none block" />
+                  {flat && <PlanetCanvas kind={f.kind} size={px} spin={f.period / 2} tilt={f.kind === "rose" ? 0.6 : 0.22} className="pointer-events-none block" />}
                 </span>
-                <span className="solar-label pointer-events-none absolute left-1/2 top-full mt-2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full py-1 pl-2 pr-2.5 text-[11.5px] font-semibold tracking-[0.01em]">
+                <span style={{ marginLeft: "var(--label-dx, 0px)" }} className="solar-label pointer-events-none absolute left-1/2 top-full mt-2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full py-1 pl-2 pr-2.5 text-[11.5px] font-semibold tracking-[0.01em]">
                   <span aria-hidden className="solar-dot h-1.5 w-1.5 rounded-full" />
                   {f.title}
                 </span>

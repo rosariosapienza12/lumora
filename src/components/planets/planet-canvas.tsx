@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useReducedMotion } from "motion/react";
 import { loadPlanetTexture, RINGED, type PlanetKind, type PlanetTexture } from "./textures";
 import { canvasSide, createSphere, HALO, RING_SCALE, type SphereOptions } from "./sphere";
+import { sharedPlanetGL } from "./solar-gl";
 
 /**
  * A procedural planet on a canvas (see sphere.ts for the rendering). Small
@@ -27,6 +28,13 @@ type Props = {
 };
 
 const DEFAULT_LIGHT: [number, number, number] = [-0.62, -0.32, 0.72];
+
+/** Seen slightly from above: poles show and rings open up (a 15° pitch, like the old flat rings). */
+const tourView = (() => {
+  const p = 0.26;
+  const [c, s] = [Math.cos(p), Math.sin(p)];
+  return new Float32Array([1, 0, 0, 0, c, s, 0, -s, c]);
+})();
 /** Cap on the sphere's pixel diameter: high enough that big planets stay sharp on retina screens. */
 const MAX_PIXELS = 1100;
 /** From this diameter (device pixels) a planet is drawn off the main thread. */
@@ -62,6 +70,49 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
     let deliver: (texture: PlanetTexture) => void;
     let setVisible: (visible: boolean) => void;
     let stop: () => void;
+    const shared = workerRef.current ? null : sharedPlanetGL();
+    if (shared) {
+      // Real 3D: the shared WebGL renderer draws the planet (rings with shadows, true sphere lighting)
+      // and the picture is copied into this canvas.
+      canvas.width = S;
+      canvas.height = S;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const [lx, ly, lz] = options.light;
+      const ll = Math.hypot(lx, ly, lz) || 1;
+      const view = tourView;
+      let visible = true;
+      let raf = 0;
+      let last = 0;
+      const frameMs = D > 600 ? 66 : 33;
+      const t0 = performance.now();
+      const draw = (now: number) => {
+        const elapsed = reduce ? 0 : (now - t0) / 1000;
+        shared.renderSingle(
+          S,
+          { kind, x: S / 2, y: S / 2, r: D / 2, light: [lx / ll, -ly / ll, lz / ll], phase: elapsed / spin, tilt, hover: 0, glow: [0.6, 0.6, 0.7], fade: 1, extent: S / D },
+          view,
+        );
+        ctx.clearRect(0, 0, S, S);
+        ctx.drawImage(shared.canvas, 0, 0);
+      };
+      const tick = (now: number) => {
+        raf = requestAnimationFrame(tick);
+        if (!visible || document.hidden || now - last < frameMs) return;
+        last = now;
+        draw(now);
+      };
+      const animate = !reduce && !still;
+      deliver = (t) => {
+        shared.setTexture(kind, t);
+        draw(performance.now());
+      };
+      setVisible = (v) => (visible = v);
+      if (animate) raf = requestAnimationFrame(tick);
+      else draw(performance.now());
+      stop = () => cancelAnimationFrame(raf);
+      // The surface is drawn as soon as a texture is ready (shared between planets of the same kind).
+    } else {
     let current = workerRef.current;
     if (current && current.canvas !== canvas) {
       current.worker.terminate();
@@ -99,6 +150,7 @@ export function PlanetCanvas({ kind, size, spin = 40, tilt = 0.22, light = DEFAU
       deliver = sphere.setTexture;
       setVisible = sphere.setVisible;
       stop = sphere.stop;
+    }
     }
 
     let cancelled = false;
