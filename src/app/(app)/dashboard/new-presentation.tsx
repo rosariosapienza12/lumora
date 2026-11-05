@@ -8,7 +8,10 @@ import { SlideThumb } from "@/components/slide/element-view";
 import { Button } from "@/components/ui";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, type ThemeId } from "@/lib/editor/themes";
-import { createPresentationAction } from "./actions";
+import { buildDeck, planDeck } from "@/lib/editor/deck";
+import { MOTIFS } from "@/lib/editor/motifs";
+import { getTheme } from "@/lib/editor/themes";
+import { createFromTopicAction, createPresentationAction } from "./actions";
 
 function CreateButton() {
   const { pending } = useFormStatus();
@@ -24,6 +27,12 @@ export function NewPresentation() {
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<TemplateId>("vuota");
   const [theme, setTheme] = useState<ThemeId>(DEFAULT_THEME);
+  const [mode, setMode] = useState<"topic" | "template">("topic");
+  const [topic, setTopic] = useState("");
+  const [photos, setPhotos] = useState(false);
+  // Live preview of what "Da un argomento" will build (photos are added on creation).
+  const plan = useMemo(() => (topic.trim().length >= 2 ? planDeck(topic, { photos }) : null), [topic, photos]);
+  const planDoc = useMemo(() => (plan ? buildDeck(plan) : null), [plan]);
   // Preview pages, rebuilt on the client when the theme changes.
   const previews = useMemo(() => Object.fromEntries(TEMPLATES.map((t) => [t.id, buildTemplate(t.id, t.name, theme)])), [theme]);
 
@@ -41,7 +50,7 @@ export function NewPresentation() {
             onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           >
             <motion.form
-              action={createPresentationAction}
+              action={mode === "topic" ? createFromTopicAction : createPresentationAction}
               role="dialog"
               aria-modal="true"
               aria-labelledby="new-title"
@@ -56,37 +65,82 @@ export function NewPresentation() {
                 <h2 id="new-title" className="font-display text-2xl font-bold">
                   Scegli da dove partire
                 </h2>
-                <p className="mt-1 text-sm text-ink-soft">Scegli un tema e un modello: si modificano liberamente, e il tema si può cambiare anche dopo nell&apos;editor.</p>
+                <div className="mt-3 inline-flex rounded-full bg-mist p-1 text-sm font-medium" role="tablist">
+                  {(["topic", "template"] as const).map((m) => (
+                    <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className="rounded-full px-4 py-1.5 aria-selected:bg-paper aria-selected:shadow-sm">
+                      {m === "topic" ? "Da un argomento" : "Da un modello"}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div>
-                <h3 className="mb-2 text-sm font-semibold">Tema</h3>
-                <ThemePicker name="theme" value={theme} onChange={setTheme} />
-              </div>
-              <h3 className="-mb-2 text-sm font-semibold">Modello</h3>
-              <fieldset className="grid gap-3 sm:grid-cols-2">
-                <legend className="sr-only">Modello</legend>
-                {TEMPLATES.map((t) => {
-                  const doc = previews[t.id];
-                  return (
-                    <label
-                      key={t.id}
-                      className="group cursor-pointer overflow-hidden rounded-2xl border-2 border-line transition-colors has-checked:border-violet has-focus-visible:ring-2 has-focus-visible:ring-violet"
-                    >
-                      <input type="radio" name="template" value={t.id} checked={choice === t.id} onChange={() => setChoice(t.id)} className="sr-only" />
-                      <SlideThumb page={doc.pages[0]} />
-                      <span className="flex items-start justify-between gap-3 p-3">
-                        <span>
-                          <span className="block font-semibold">{t.name}</span>
-                          <span className="block text-sm text-ink-soft">{t.description}</span>
-                        </span>
-                        <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-xs text-ink-soft">
-                          {doc.pages.length} {doc.pages.length === 1 ? "pagina" : "pagine"}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
+              {mode === "topic" ? (
+                <>
+                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                    Di cosa parla la presentazione?
+                    <input
+                      name="topic"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      maxLength={120}
+                      required
+                      minLength={2}
+                      placeholder="Per esempio: il riciclo, la Rivoluzione francese, la mia startup"
+                      className="rounded-xl border border-line bg-paper px-3.5 py-2.5 font-normal outline-none focus:border-violet"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="photos" checked={photos} onChange={(e) => setPhotos(e.target.checked)} className="accent-violet" />
+                    Con immagini: aggiungi foto gratis da Wikimedia Commons (con autore e licenza)
+                  </label>
+                  {plan && planDoc && (
+                    <div>
+                      <p className="mb-2 text-sm text-ink-soft">
+                        {planDoc.pages.length} pagine nel tema {getTheme(plan.theme).name}
+                        {plan.motif ? `, decorazioni ${MOTIFS[plan.motif].name.toLowerCase()}` : ""}. Tutto si cambia dopo nell&apos;editor.
+                      </p>
+                      <ol className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {planDoc.pages.map((p) => (
+                          <li key={p.id} className="overflow-hidden rounded-lg border border-line">
+                            <SlideThumb page={p} />
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">Tema</h3>
+                    <ThemePicker name="theme" value={theme} onChange={setTheme} />
+                  </div>
+                  <h3 className="-mb-2 text-sm font-semibold">Modello</h3>
+                  <fieldset className="grid gap-3 sm:grid-cols-2">
+                    <legend className="sr-only">Modello</legend>
+                    {TEMPLATES.map((t) => {
+                      const doc = previews[t.id];
+                      return (
+                        <label
+                          key={t.id}
+                          className="group cursor-pointer overflow-hidden rounded-2xl border-2 border-line transition-colors has-checked:border-violet has-focus-visible:ring-2 has-focus-visible:ring-violet"
+                        >
+                          <input type="radio" name="template" value={t.id} checked={choice === t.id} onChange={() => setChoice(t.id)} className="sr-only" />
+                          <SlideThumb page={doc.pages[0]} />
+                          <span className="flex items-start justify-between gap-3 p-3">
+                            <span>
+                              <span className="block font-semibold">{t.name}</span>
+                              <span className="block text-sm text-ink-soft">{t.description}</span>
+                            </span>
+                            <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-xs text-ink-soft">
+                              {doc.pages.length} {doc.pages.length === 1 ? "pagina" : "pagine"}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </fieldset>
+                </>
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                   Annulla

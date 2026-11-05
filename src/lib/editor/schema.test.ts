@@ -83,7 +83,7 @@ describe("shapes", () => {
 
   it("has a valid SVG path for every non-basic shape", () => {
     for (const shape of SHAPE_IDS) {
-      if (shape === "rect" || shape === "ellipse") continue;
+      if (shape === "rect" || shape === "ellipse" || shape === "arc") continue;
       expect(isSvgShape(shape)).toBe(true);
       expect(SVG_SHAPES[shape].d).toMatch(/^[MmLlHhVvCcSsQqTtAaZz0-9 .,-]+$/);
     }

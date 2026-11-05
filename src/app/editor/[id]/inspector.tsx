@@ -1,5 +1,6 @@
 "use client";
 
+import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
 import { SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
@@ -138,7 +139,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; page: Page; el: Element | null; dispatch: (a: Action) => void }) {
+export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto }: { doc: PresentationDoc; page: Page; el: Element | null; dispatch: (a: Action) => void; onFindPhoto?: () => void; onUploadPhoto?: () => void }) {
   if (!el) {
     return (
       <div>
@@ -167,6 +168,22 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
           <p className="text-xs text-ink-soft">Cambia colori e caratteri di tutte le pagine. I colori scelti a mano restano come sono; puoi sempre annullare.</p>
           <ThemePicker compact value={doc.settings?.theme ?? DEFAULT_THEME} onChange={(theme) => dispatch({ type: "apply-theme", theme })} />
         </Section>
+        <Section title="Argomento">
+          <p className="text-xs text-ink-soft">Illustrazioni ai margini delle pagine, scelte per l&apos;argomento. Non coprono i contenuti.</p>
+          <select
+            aria-label="Argomento"
+            className={inputCls}
+            value={doc.settings?.motif ?? ""}
+            onChange={(e) => dispatch({ type: "apply-motif", motif: isMotifId(e.target.value) ? e.target.value : undefined })}
+          >
+            <option value="">Nessuna decorazione</option>
+            {MOTIF_IDS.map((id) => (
+              <option key={id} value={id}>
+                {MOTIFS[id].name}
+              </option>
+            ))}
+          </select>
+        </Section>
         <Section title="Presentazione">
           <Row label="Avanza da sola dopo (secondi, 0 = mai)">
             <Num value={doc.settings?.autoAdvance ?? 0} min={0} max={300} onChange={(autoAdvance) => dispatch({ type: "settings", autoAdvance })} />
@@ -183,6 +200,37 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
   return (
     <div>
       <Section title="Contenuto">
+        {((el.type === "shape" && el.photoSlot) || el.type === "image") && (
+          <div className="flex flex-col gap-2">
+            {el.type === "shape" && <p className="text-xs text-ink-soft">Spazio per una foto: scegline una e prenderà il suo posto, con la stessa misura.</p>}
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={onFindPhoto} className={chip}>
+                Cerca foto gratis
+              </button>
+              <button onClick={onUploadPhoto} className={chip}>
+                Carica dal computer
+              </button>
+            </div>
+            {el.type === "image" && el.credit && (
+              <p className="text-xs text-ink-soft">
+                {el.credit}
+                {el.creditUrl && (
+                  <>
+                    {" "}
+                    <a href={el.creditUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-violet underline">
+                      Licenza e autore
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+        {el.type === "shape" && el.shape === "arc" && (
+          <Row label="Percentuale disegnata">
+            <Num value={el.progress ?? 75} min={0} max={100} onChange={(progress) => set({ progress })} />
+          </Row>
+        )}
         {el.type === "text" && (
           <>
             <Row label="Testo">

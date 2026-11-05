@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { buildDeck, parseDeck } from "@/lib/editor/deck";
 import { getTheme } from "@/lib/editor/themes";
+import { MOTIFS } from "@/lib/editor/motifs";
+import { addFreePhotos } from "@/lib/images/fill";
+import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request";
 import { SlideThumb } from "@/components/slide/element-view";
 import { Button, ButtonLink, Logo } from "@/components/ui";
 import { createFromDeckAction } from "./actions";
@@ -14,7 +18,9 @@ export default async function NewFromDeckPage({ searchParams }: PageProps<"/nuov
   const { d } = await searchParams;
   const spec = parseDeck(d);
   if (!spec) redirect("/");
-  const doc = buildDeck(spec);
+  let doc = buildDeck(spec);
+  // The preview shows the same free photos the presentation will get (searches are cached for an hour).
+  if (spec.photos && (await rateLimit(`images-preview:${await clientIp()}`, 30, 60 * 60))) doc = (await addFreePhotos(doc, spec.photos)).doc;
   const theme = getTheme(spec.theme);
   const user = await getCurrentUser();
 
@@ -28,7 +34,9 @@ export default async function NewFromDeckPage({ searchParams }: PageProps<"/nuov
           <p className="text-sm font-medium text-[#7fffd4]">Proposta di Zib</p>
           <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{spec.title}</h1>
           <p className="mt-3 text-white/75">
-            {doc.pages.length} pagine nel tema {theme.name}. Una volta creata puoi cambiare testi, layout e tema come vuoi.
+            {doc.pages.length} pagine nel tema {theme.name}
+            {spec.motif ? `, con le decorazioni per l'argomento ${MOTIFS[spec.motif].name.toLowerCase()}` : ""}
+            {spec.photos ? " e foto libere da Wikimedia Commons" : ""}. Una volta creata puoi cambiare testi, layout e tema come vuoi.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
