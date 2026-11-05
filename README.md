@@ -4,7 +4,11 @@
 
 > The app's interface is in Italian.
 
+**Live demo: [lumora-rosario.vercel.app](https://lumora-rosario.vercel.app)**. Press "Prova subito, senza account" to open the editor without signing up.
+
 ![Lumora homepage: a solar system where every planet is a feature](docs/screenshots/home.png)
+
+![The tour through the planets: one world per feature, with a shooting star, meteors, an alien ship and a comet between stops](docs/screenshots/tour.gif)
 
 ## Features
 
@@ -19,7 +23,7 @@
 
 | Tour of the features | Zib assistant |
 | --- | --- |
-| ![The Templates planet page](docs/screenshots/tour.png) | ![Chat with the Zib assistant](docs/screenshots/zib.png) |
+| ![A stop of the planet tour, with an alien ship circling the planet](docs/screenshots/tour.png) | ![Chat with the Zib assistant](docs/screenshots/zib.png) |
 
 | Dashboard | Editor |
 | --- | --- |
@@ -28,6 +32,10 @@
 | Themes and templates | Page layouts |
 | --- | --- |
 | ![Choosing a theme and template](docs/screenshots/temi.png) | ![Page layout menu](docs/screenshots/layout.png) |
+
+On phones: the homepage, the planet tour and the editor, which stacks into one column.
+
+![Lumora on a phone: homepage, planet tour and editor](docs/screenshots/mobile.png)
 
 ## Security
 
