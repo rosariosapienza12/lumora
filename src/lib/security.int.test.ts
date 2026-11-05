@@ -16,7 +16,6 @@ import { rateLimit } from "./rate-limit";
 import { purgeExpiredGuests } from "./guest-cleanup";
 import { newGuestEmail } from "./guest";
 import { buildTemplate } from "./editor/templates";
-import { sha256 } from "./crypto";
 import type { Prisma } from "@/generated/prisma/client";
 
 let n = 0;
@@ -83,8 +82,11 @@ describe.runIf(process.env.DATABASE_TESTS === "1")("security rules on a real dat
     const alice = await user();
     const token = await issueEmailToken(alice.id, "VERIFY_EMAIL");
 
-    expect(await db.emailToken.findUnique({ where: { id: token } })).toBeNull();
-    expect(await db.emailToken.findUnique({ where: { id: sha256(token) } })).not.toBeNull();
+    // Only a hash is stored: the row's id is never the token sent by email.
+    const stored = await db.emailToken.findMany({ where: { userId: alice.id } });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].id).not.toBe(token);
+    expect(stored[0].id).toMatch(/^[0-9a-f]{64}$/);
     expect(await consumeEmailToken(token, "RESET_PASSWORD")).toBeNull();
     expect(await consumeEmailToken(token, "VERIFY_EMAIL")).toBe(alice.id);
     expect(await consumeEmailToken(token, "VERIFY_EMAIL")).toBeNull();
@@ -96,7 +98,7 @@ describe.runIf(process.env.DATABASE_TESTS === "1")("security rules on a real dat
     const second = await issueEmailToken(alice.id, "RESET_PASSWORD");
     expect(await consumeEmailToken(first, "RESET_PASSWORD")).toBeNull();
 
-    await db.emailToken.update({ where: { id: sha256(second) }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await db.emailToken.updateMany({ where: { userId: alice.id, usedAt: null }, data: { expiresAt: new Date(Date.now() - 1000) } });
     expect(await consumeEmailToken(second, "RESET_PASSWORD")).toBeNull();
   });
 
