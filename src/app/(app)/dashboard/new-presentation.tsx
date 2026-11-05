@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { buildTemplate, TEMPLATES, type TemplateId } from "@/lib/editor/templates";
+import { buildTemplate, TEMPLATES, templateTheme, type TemplateId } from "@/lib/editor/templates";
 import { SlideThumb } from "@/components/slide/element-view";
 import { Button } from "@/components/ui";
 import { ThemePicker } from "@/components/theme-picker";
@@ -34,7 +34,15 @@ export function NewPresentation() {
   const plan = useMemo(() => (topic.trim().length >= 2 ? planDeck(topic, { photos }) : null), [topic, photos]);
   const planDoc = useMemo(() => (plan ? buildDeck(plan) : null), [plan]);
   // Preview pages, rebuilt on the client when the theme changes.
-  const previews = useMemo(() => Object.fromEntries(TEMPLATES.map((t) => [t.id, buildTemplate(t.id, t.name, theme)])), [theme]);
+  // Every template is shown in the theme it was designed for; the chosen one in the theme picked above.
+  const previews = useMemo(
+    () => Object.fromEntries(TEMPLATES.map((t) => [t.id, buildTemplate(t.id, t.name, t.id === choice ? theme : t.theme)])),
+    [theme, choice],
+  );
+  const pick = (id: TemplateId) => {
+    setChoice(id);
+    setTheme(templateTheme(id));
+  };
 
   return (
     <>
@@ -127,11 +135,12 @@ export function NewPresentation() {
                           key={t.id}
                           className="group cursor-pointer overflow-hidden rounded-2xl border-2 border-line transition-colors has-checked:border-violet has-focus-visible:ring-2 has-focus-visible:ring-violet"
                         >
-                          <input type="radio" name="template" value={t.id} checked={choice === t.id} onChange={() => setChoice(t.id)} className="sr-only" />
+                          <input type="radio" name="template" value={t.id} checked={choice === t.id} onChange={() => pick(t.id)} className="sr-only" />
                           <SlideThumb page={doc.pages[0]} />
                           <span className="flex items-start justify-between gap-3 p-3">
                             <span>
                               <span className="block font-semibold">{t.name}</span>
+                              <span className="block text-xs font-medium uppercase tracking-wide text-violet">Stile {t.style}</span>
                               <span className="block text-sm text-ink-soft">{t.description}</span>
                             </span>
                             <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-xs text-ink-soft">
