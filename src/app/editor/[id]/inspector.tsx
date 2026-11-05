@@ -1,7 +1,9 @@
 "use client";
 
 import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
-import { SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
+import { isSvgShape, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
+import { RELIEF_NAMES, RELIEFS } from "@/lib/three/ids";
+import { Look3DControls, Object3DControls } from "./object3d-panel";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, getTheme, PATTERNS, type Pattern } from "@/lib/editor/themes";
@@ -202,6 +204,9 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
           </div>
           <p className="text-xs text-ink-soft">Cambiano ovunque sono usati, in tutte le pagine.</p>
         </Section>
+        <Section title="Stile 3D">
+          <Look3DControls doc={doc} onLook={(look) => dispatch({ type: "look-3d", look })} />
+        </Section>
         <Section title="Argomento">
           <p className="text-xs text-ink-soft">Illustrazioni ai margini delle pagine, scelte per l&apos;argomento. Non coprono i contenuti.</p>
           <select
@@ -272,6 +277,18 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
         {el.type === "shape" && el.shape === "arc" && (
           <Row label="Percentuale disegnata">
             <Num value={el.progress ?? 75} min={0} max={100} onChange={(progress) => set({ progress })} />
+          </Row>
+        )}
+        {el.type === "object3d" && <Object3DControls el={el} set={set} />}
+        {el.type === "shape" && !el.photoSlot && isSvgShape(el.shape) && (
+          <Row label="Rilievo 3D">
+            <div className="flex flex-wrap gap-1.5">
+              {RELIEFS.map((r) => (
+                <button key={r} aria-pressed={(el.relief ?? "none") === r} onClick={() => set({ relief: r === "none" ? undefined : r })} className={chip}>
+                  {RELIEF_NAMES[r]}
+                </button>
+              ))}
+            </div>
           </Row>
         )}
         {el.type === "text" && <ZibOnText text={el.text} context={page.source?.content.heading ?? page.name} onText={(text) => set({ text })} />}

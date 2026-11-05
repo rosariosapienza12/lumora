@@ -3,6 +3,7 @@ import { THEME_IDS } from "./themes";
 import { SHAPE_IDS, SVG_SHAPE_IDS, type SvgShape } from "./shapes";
 import { MOTIF_IDS } from "./motif-ids";
 import { pageContentSchema } from "./content";
+import { FORMS_3D, MATERIALS_3D, RELIEFS } from "../three/ids";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -193,8 +194,29 @@ const shapeEl = z.object({
   photoSlot: z.boolean().optional(),
   /** Share of the "arc" shape that is drawn, 0-100. */
   progress: z.number().min(0).max(100).optional(),
+  /** Light and shadow that make a flat drawing look 3D. */
+  relief: z.enum(RELIEFS).optional(),
   ...stroke,
   ...gradient,
+});
+
+/** A real 3D object, drawn by Lumora's renderer with light, shadow and material. */
+const object3dEl = z.object({
+  ...base,
+  type: z.literal("object3d"),
+  form: z.enum(FORMS_3D),
+  material: z.enum(MATERIALS_3D),
+  fill: color,
+  /** Second colour: marble veins, neon glow, studio tint. */
+  color2: color.optional(),
+  tiltX: z.number().min(-180).max(180).optional(),
+  tiltY: z.number().min(-180).max(180).optional(),
+  /** Where the key light comes from, in degrees. */
+  light: z.number().min(0).max(360).optional(),
+  /** Turns slowly during the presentation. */
+  spin: z.boolean().optional(),
+  /** Description for screen readers. */
+  alt: plainText(200).optional(),
 });
 
 const imageEl = z.object({
@@ -229,7 +251,7 @@ const hotspotEl = z.object({
   label: plainText(3),
 });
 
-export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl]);
+export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl, object3dEl]);
 
 export const page = z.object({
   id,
@@ -259,6 +281,8 @@ export const settings = z.object({
   colors: z.object({ accent: color.optional(), accent2: color.optional() }).optional(),
   /** How many decorations per page: 0 none, 1 few, 2 normal, 3 many. */
   decorDensity: z.number().int().min(0).max(3).optional(),
+  /** Materials and forms of the 3D objects, chosen by Zib or by hand over the theme's own. */
+  look3d: z.object({ material: z.enum(MATERIALS_3D), second: z.enum(MATERIALS_3D), forms: z.tuple([z.enum(FORMS_3D), z.enum(FORMS_3D), z.enum(FORMS_3D)]) }).optional(),
 });
 
 export const documentSchema = z

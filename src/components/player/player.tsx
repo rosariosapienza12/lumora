@@ -328,7 +328,7 @@ function PlayerElement({
     >
       {/* The outer filter animates the entrance blur, so the shadow lives on the inner layer. */}
       <motion.div className="h-full w-full" style={{ filter: el.shadow ? SHADOW : undefined }} animate={emphasisLoop[el.animation.emphasis]}>
-        <ElementBody el={el} />
+        <ElementBody el={el} live />
       </motion.div>
       <AnimatePresence>
         {tooltip && (

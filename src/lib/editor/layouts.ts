@@ -5,6 +5,8 @@ import type { ShapeId, SvgShape } from "./shapes";
 import { MOTIFS } from "./motifs";
 import type { MotifId } from "./motif-ids";
 import { fitSize, nth, type Item, type PageContent } from "./content";
+import type { Form3D } from "../three/ids";
+import { style3D } from "../three/styles";
 
 /**
  * Ready-made page layouts, drawn with theme roles so each one fits any theme,
@@ -91,7 +93,25 @@ export function drawWith(t: Theme) {
     ...(o.stroke ? { stroke: o.stroke, strokeWidth: o.strokeWidth ?? 3 } : {}),
   });
   /** A drawing or geometric shape from shapes.ts. */
-  const figure = (box: Box, k: ShapeId, fill: string, o: Omit<ShapeOpts, "ellipse"> = {}): Element => ({ ...shape(box, fill, o), shape: k, radius: 0 }) as Element;
+  // Drawings are lit in the theme's relief (puffed, carved or enamelled); faint background washes stay flat.
+  const look = style3D(t.id);
+  const figure = (box: Box, k: ShapeId, fill: string, o: Omit<ShapeOpts, "ellipse"> = {}): Element =>
+    ({ ...shape(box, fill, o), shape: k, radius: 0, ...((o.opacity ?? 1) >= 0.5 && k !== "arc" && k !== "line" ? { relief: look.relief } : {}) }) as Element;
+  /** A real 3D object in the theme's material (or the second one), slowly turning in the presentation. */
+  const object = (box: Box, form: Form3D, o: { second?: boolean; color?: string; tiltX?: number; tiltY?: number; delay?: number; spin?: boolean; enter?: EnterAnimation } = {}): Element => ({
+    ...base(o.enter ?? "zoom", o.delay),
+    ...box,
+    animation: { enter: o.enter ?? "zoom", emphasis: "float", duration: 0.8, delay: o.delay ?? 0 },
+    type: "object3d",
+    form,
+    material: o.second ? look.second : look.material,
+    fill: o.color ?? (o.second ? p.accent2 : p.accent),
+    color2: p.coverBg2 ?? (o.second ? p.accent : p.accent2),
+    tiltX: o.tiltX ?? -18,
+    tiltY: o.tiltY ?? 24,
+    light: 0,
+    ...(o.spin ? { spin: true } : {}),
+  });
   /** Space for a photo, drawn as a card until a real photo takes its place. */
   const photoBox = (box: Box, o: { radius?: number; delay?: number; enter?: EnterAnimation; rotation?: number } = {}): Element =>
     ({ ...shape(box, p.card, { radius: o.radius ?? radius, enter: o.enter ?? "fade", delay: o.delay, rotation: o.rotation }), photoSlot: true }) as Element;
@@ -212,7 +232,7 @@ export function drawWith(t: Theme) {
     }
   };
 
-  return { p, kind, radius, tilt, text, shape, figure, photoBox, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector, card, mark };
+  return { p, kind, radius, tilt, text, shape, figure, object, photoBox, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector, card, mark };
 }
 
 /* ---------- Cover, section and closing: a full composition per art direction ---------- */
@@ -300,7 +320,21 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
   if (v === 3) art = art.map((e) => ({ ...e, y: e.y - 220 }));
   const sigBox = role === "closing" || v === 2 ? { x: 1300, y: 640, w: 200, h: 200 } : v === 1 ? { x: 70, y: 610, w: 240, h: 240 } : v === 3 ? { x: 1220, y: 560, w: 260, h: 260 } : { x: 1250, y: 600, w: 240, h: 240 };
   const sig = d.figure(sigBox, t.signature, p.accent2, { opacity: 0.9, enter: "pop", delay: 0.45, rotation: v === 1 ? 8 : -8 });
-  const els = [...art, sig];
+  // The theme's 3D composition: a hero object and two smaller ones in its material, away from the words.
+  const [f1, f2, f3] = style3D(t.id).forms;
+  const corners = role === "closing" || v === 2;
+  const slots: Box[] = corners
+    ? [{ x: 30, y: 10, w: 230, h: 230 }, { x: 1350, y: 20, w: 210, h: 210 }, { x: 70, y: 690, w: 170, h: 170 }]
+    : v === 3
+      ? [{ x: 1120, y: 70, w: 340, h: 340 }, { x: 880, y: 50, w: 180, h: 180 }, { x: 1470, y: 420, w: 110, h: 110 }]
+      : [{ x: 1070, y: 110, w: 380, h: 380 }, { x: 1430, y: 440, w: 150, h: 150 }, { x: 1010, y: 560, w: 140, h: 140 }];
+  const placed = v === 1 && !corners ? slots.map((s) => ({ ...s, x: 1600 - s.x - s.w })) : slots;
+  const objects = [
+    d.object(placed[0], f1, { delay: 0.2, spin: role === "cover", tiltY: v === 1 ? -24 : 24 }),
+    d.object(placed[1], f2, { second: true, delay: 0.35, tiltX: 20, tiltY: -30 }),
+    d.object(placed[2], f3, { delay: 0.5, tiltX: -35, tiltY: 50 }),
+  ];
+  const els = [...art, sig, ...objects];
   const side = v === 1 ? { x: 600, align: "right" as const } : { x: 120, align: "left" as const };
 
   if (role === "closing") {

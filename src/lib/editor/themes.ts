@@ -1,3 +1,4 @@
+import { style3D } from "../three/styles";
 import type { Element, FontId, Page, PresentationDoc } from "./schema";
 import type { SvgShape } from "./shapes";
 
@@ -300,6 +301,12 @@ export function applyTheme(doc: PresentationDoc, toId: ThemeId): PresentationDoc
           return { ...e, fill: fill(e.fill) };
         case "image":
           return e.stroke ? { ...e, stroke: fill(e.stroke) } : e;
+        case "object3d": {
+          // Objects in the old theme's materials take the new theme's ones; hand-picked materials stay.
+          const [a, b] = [style3D(from.id), style3D(to.id)];
+          const material = e.material === a.material ? b.material : e.material === a.second ? b.second : e.material;
+          return { ...e, material, fill: fill(e.fill), ...(e.color2 ? { color2: fill(e.color2) } : {}) };
+        }
       }
     });
     return { ...p, background, ...gradient, elements };

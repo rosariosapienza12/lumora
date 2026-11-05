@@ -1,3 +1,4 @@
+import { applyLook3D, relookPage, style3D, type Look3D } from "@/lib/three/styles";
 import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, isLayoutId, relatedLayouts, type LayoutId } from "@/lib/editor/layouts";
@@ -26,6 +27,8 @@ export type Action =
   | { type: "move-page"; pageId: string; dir: -1 | 1 }
   | { type: "update-page"; patch: Partial<Omit<Page, "id" | "elements">> }
   | { type: "add-element"; kind: ElementType; src?: string; alt?: string; shape?: ShapeId }
+  /** Inserts ready-made elements (a 3D object or a whole 3D composition) and selects the first. */
+  | { type: "add-elements"; elements: Element[] }
   | { type: "update-element"; id: string; patch: Partial<Element>; /** merge into the previous history step (drag) */ coalesce?: boolean }
   | { type: "delete-element"; id: string }
   | { type: "duplicate-element"; id: string }
@@ -37,6 +40,8 @@ export type Action =
   | { type: "apply-theme"; theme: ThemeId }
   | { type: "apply-motif"; motif: MotifId | undefined }
   | { type: "decor-density"; density: number }
+  /** Materials and forms of every 3D object in the presentation. */
+  | { type: "look-3d"; look: Look3D }
   /** Redraw the current page with the next layout that can show the same words. */
   | { type: "relayout" }
   | { type: "pattern"; pattern: Pattern; all?: boolean }
@@ -105,6 +110,22 @@ function createElement(kind: ElementType, src?: string, alt = "", shape: ShapeId
         animation: { enter: "pop", emphasis: "none", duration: 0.5, delay: 0 },
         interaction: { trigger: "click", action: { kind: "popup", title: "Lo sapevi?", body: "Scrivi qui il contenuto che appare al clic." } },
       };
+    case "object3d":
+      return {
+        ...baseEl(),
+        type: "object3d",
+        x: cx - 180,
+        y: cy - 180,
+        w: 360,
+        h: 360,
+        form: "sfera",
+        material: "vetro",
+        fill: "#5b3df5",
+        tiltX: -18,
+        tiltY: 24,
+        light: 0,
+        animation: { enter: "zoom", emphasis: "float", duration: 0.8, delay: 0 },
+      };
   }
 }
 
@@ -139,7 +160,9 @@ export function reducer(state: EditorState, action: Action): EditorState {
       const theme = getTheme(state.doc.settings?.theme);
       const motif = state.doc.settings?.motif;
       const built = action.layout ? buildLayout(action.layout, theme, undefined, { motif }) : blankPage(`Pagina ${state.doc.pages.length + 1}`);
-      const p = action.layout && motif ? decoratePage(built, motif, theme, state.doc.pages.length) : built;
+      const decorated = action.layout && motif ? decoratePage(built, motif, theme, state.doc.pages.length) : built;
+      // The presentation's own 3D look (Zib's or picked by hand) wins over the theme's.
+      const p = state.doc.settings?.look3d ? relookPage(decorated, style3D(theme.id), state.doc.settings.look3d) : decorated;
       const idx = state.doc.pages.findIndex((x) => x.id === page.id);
       const pages = [...state.doc.pages];
       pages.splice(idx + 1, 0, p);
@@ -190,6 +213,11 @@ export function reducer(state: EditorState, action: Action): EditorState {
         el.y += 40;
       }
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
+    }
+    case "add-elements": {
+      if (!action.elements.length) return state;
+      const fresh = action.elements.map((e) => ({ ...e, id: newId() }) as Element);
+      return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, ...fresh] })), { selectedId: fresh[0].id });
     }
     case "update-element":
       return commit(
@@ -248,6 +276,8 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return commit(state, applyTheme(state.doc, action.theme));
     case "apply-motif":
       return commit(state, applyMotif(state.doc, action.motif), { selectedId: null });
+    case "look-3d":
+      return commit(state, applyLook3D(state.doc, action.look));
     case "decor-density":
       return commit(state, applyMotif(state.doc, state.doc.settings?.motif, { density: action.density }), { selectedId: null });
     case "relayout": {
