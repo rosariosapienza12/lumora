@@ -1,5 +1,7 @@
 "use client";
 
+import { SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
+import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME } from "@/lib/editor/themes";
 import type { ReactNode } from "react";
@@ -232,12 +234,24 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
         )}
         {el.type === "shape" && (
           <div className="grid grid-cols-2 gap-2">
-            <Row label="Forma">
-              <select className={inputCls} value={el.shape} onChange={(e) => set({ shape: e.target.value as "rect" | "ellipse" })}>
-                <option value="rect">Rettangolo</option>
-                <option value="ellipse">Ellisse</option>
-              </select>
-            </Row>
+            <div className="col-span-2">
+              <span className="mb-1 block text-xs font-medium text-ink-soft">Forma</span>
+              <div className="grid grid-cols-7 gap-1" role="radiogroup" aria-label="Forma">
+                {SHAPE_IDS.map((shape) => (
+                  <button
+                    key={shape}
+                    role="radio"
+                    aria-checked={el.shape === shape}
+                    title={SHAPE_LABELS[shape]}
+                    aria-label={SHAPE_LABELS[shape]}
+                    onClick={() => set({ shape })}
+                    className="grid aspect-square place-items-center rounded-lg border border-line text-violet hover:border-violet aria-checked:border-violet aria-checked:bg-violet/10"
+                  >
+                    <ShapeIcon shape={shape} className="size-5" />
+                  </button>
+                ))}
+              </div>
+            </div>
             <Row label="Colore">
               <ColorInput value={el.fill} onChange={(fill) => set({ fill })} />
             </Row>
@@ -335,6 +349,47 @@ export function Inspector({ doc, page, el, dispatch }: { doc: PresentationDoc; p
           <Row label="Rotazione (°)">
             <Num value={el.rotation} min={-360} max={360} onChange={(rotation) => set({ rotation })} />
           </Row>
+          <div className="col-span-2">
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              value={Math.max(-180, Math.min(180, el.rotation))}
+              onChange={(e) => set({ rotation: Number(e.target.value) })}
+              aria-label="Rotazione"
+              className="w-full accent-violet"
+            />
+            <div className="mt-1 flex flex-wrap gap-1">
+              {[
+                { label: "↺ 15°", value: el.rotation - 15 },
+                { label: "↻ 15°", value: el.rotation + 15 },
+                { label: "↻ 90°", value: el.rotation + 90 },
+                { label: "Dritto", value: 0 },
+              ].map((b) => (
+                <button
+                  key={b.label}
+                  onClick={() => set({ rotation: ((((b.value + 180) % 360) + 360) % 360) - 180 })}
+                  className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:border-violet"
+                >
+                  {b.label}
+                </button>
+              ))}
+              <button
+                onClick={() => set({ flipX: !el.flipX })}
+                aria-pressed={Boolean(el.flipX)}
+                className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:border-violet aria-pressed:border-violet aria-pressed:bg-violet/10"
+              >
+                ⇋ Specchia
+              </button>
+              <button
+                onClick={() => set({ flipY: !el.flipY })}
+                aria-pressed={Boolean(el.flipY)}
+                className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:border-violet aria-pressed:border-violet aria-pressed:bg-violet/10"
+              >
+                ⇵ Capovolgi
+              </button>
+            </div>
+          </div>
           <Row label="Opacità (%)">
             <Num value={el.opacity * 100} min={0} max={100} onChange={(v) => set({ opacity: v / 100 })} />
           </Row>
@@ -532,7 +587,7 @@ export function describe(el: Element) {
     case "text":
       return `Testo: ${el.text.slice(0, 24) || "vuoto"}`;
     case "shape":
-      return el.shape === "ellipse" ? "Ellisse" : "Rettangolo";
+      return SHAPE_LABELS[el.shape];
     case "image":
       return `Immagine${el.alt ? `: ${el.alt.slice(0, 20)}` : ""}`;
     case "button":

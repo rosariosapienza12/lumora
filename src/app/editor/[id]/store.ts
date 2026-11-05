@@ -2,6 +2,7 @@ import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, type LayoutId } from "@/lib/editor/layouts";
 import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
+import type { ShapeId } from "@/lib/editor/shapes";
 
 export type EditorState = {
   doc: PresentationDoc;
@@ -21,7 +22,7 @@ export type Action =
   | { type: "delete-page"; pageId: string }
   | { type: "move-page"; pageId: string; dir: -1 | 1 }
   | { type: "update-page"; patch: Partial<Omit<Page, "id" | "elements">> }
-  | { type: "add-element"; kind: ElementType; src?: string; alt?: string }
+  | { type: "add-element"; kind: ElementType; src?: string; alt?: string; shape?: ShapeId }
   | { type: "update-element"; id: string; patch: Partial<Element>; /** merge into the previous history step (drag) */ coalesce?: boolean }
   | { type: "delete-element"; id: string }
   | { type: "duplicate-element"; id: string }
@@ -65,14 +66,16 @@ const baseEl = () => ({
   interaction: null,
 });
 
-function createElement(kind: ElementType, src?: string, alt = ""): Element {
+function createElement(kind: ElementType, src?: string, alt = "", shape: ShapeId = "rect"): Element {
   const cx = CANVAS_W / 2;
   const cy = CANVAS_H / 2;
   switch (kind) {
     case "text":
       return { ...baseEl(), type: "text", x: cx - 400, y: cy - 60, w: 800, h: 120, text: "Scrivi qui il tuo testo", fontSize: 56, color: "#1d1a3a", align: "left", weight: "600", font: "display" };
     case "shape":
-      return { ...baseEl(), type: "shape", x: cx - 200, y: cy - 150, w: 400, h: 300, shape: "rect", fill: "#5b3df5", radius: 32 };
+      // Most shapes look right in a square box; rectangles, arrows and lines are wider.
+      const wide = shape === "rect" || shape === "arrow" || shape === "double-arrow" || shape === "line" || shape === "ribbon" || shape === "wave";
+      return { ...baseEl(), type: "shape", x: cx - (wide ? 200 : 150), y: cy - 150, w: wide ? 400 : 300, h: shape === "line" ? 40 : 300, shape, fill: "#5b3df5", radius: shape === "rect" ? 32 : 0 };
     case "image":
       return { ...baseEl(), type: "image", x: cx - 320, y: cy - 200, w: 640, h: 400, src: src ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1280", alt, fit: "cover", radius: 24 };
     case "button":
@@ -165,7 +168,12 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "update-page":
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, ...action.patch })));
     case "add-element": {
-      const el = createElement(action.kind, action.src, action.alt);
+      const el = createElement(action.kind, action.src, action.alt, action.shape);
+      // Elements added one after another are cascaded instead of stacking on the same spot.
+      for (let i = 0; i < 12 && page.elements.some((e) => e.x === el.x && e.y === el.y); i++) {
+        el.x += 40;
+        el.y += 40;
+      }
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, el] })), { selectedId: el.id });
     }
     case "update-element":

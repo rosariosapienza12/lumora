@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { THEME_IDS } from "./themes";
+import { SHAPE_IDS } from "./shapes";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -146,6 +147,9 @@ const base = {
   interaction: interaction.nullable().default(null),
   // Optional styling added later; absent in older documents.
   shadow: z.boolean().optional(),
+  /** Mirror the element horizontally / vertically. */
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
 };
 
 /** Optional second colour and direction: turns a flat colour into a gradient. */
@@ -178,7 +182,7 @@ const textEl = z.object({
 const shapeEl = z.object({
   ...base,
   type: z.literal("shape"),
-  shape: z.enum(["rect", "ellipse"]),
+  shape: z.enum(SHAPE_IDS),
   fill: color,
   radius: z.number().min(0).max(800),
   ...stroke,

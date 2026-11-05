@@ -14,7 +14,7 @@
 
 - **Try it without an account**: "Prova subito" opens the editor on an example presentation for a temporary guest. Guests cannot publish and are deleted, with everything they made, after 24 hours.
 - **Themes and layouts**: 11 coordinated visual themes (colors and fonts), 8 presentation templates and 17 ready-made, animated page layouts; switching theme restyles the whole presentation in one click.
-- **Visual editor** with three columns (pages, canvas and properties panel): 32 fonts, solid colors or gradients, shadows, outlines, layers, alignment, undo/redo and keyboard shortcuts.
+- **Visual editor** with three columns (pages, canvas and properties panel): 28 shapes (stars, arrows, hearts, speech bubbles, leaves, clouds and more), a handle to rotate any element through 360° plus mirroring, 32 fonts, solid colors or gradients, shadows, outlines, layers, alignment, undo/redo and keyboard shortcuts.
 - **Interactivity**: glowing hotspots, pop-up details, content to reveal, buttons that jump to other pages (quizzes and branching stories), external links with confirmation.
 - **Animations and transitions**: 7 entrance effects, 4 looping effects, and fade, slide, zoom and 3D-rotate transitions between pages. All of them respect `prefers-reduced-motion`.
 - **Present and share**: presenter mode with notes and timer, auto-advance, PDF export, public link with optional password, QR code and embed code.
