@@ -10,6 +10,8 @@ import { ILLUSTRATION_IDS, isSvgShape, type SvgShape } from "@/lib/editor/shapes
 import { getTheme, isThemeId, STYLE_NAMES, THEMES, type ThemeId } from "@/lib/editor/themes";
 import { documentSchema, type PresentationDoc } from "@/lib/editor/schema";
 import type { DeckSpec } from "@/lib/editor/deck";
+import { FORMS_3D, isForm3D, isMaterial3D, MATERIALS_3D, type Form3D } from "@/lib/three/ids";
+import { applyLook3D } from "@/lib/three/styles";
 
 /**
  * Zib writes a whole presentation: real, specific content for every page
@@ -39,6 +41,8 @@ export const generatedDeckSchema = z.object({
   decor: z.array(z.string()).max(6).default([]),
   /** Words to search free photos with, when photos were asked for. */
   photoQuery: z.string().trim().max(60).optional(),
+  /** The 3D objects of the presentation, chosen for the topic. Unknown values are ignored. */
+  look3d: z.object({ material: z.string(), second: z.string(), forms: z.array(z.string()).length(3) }).optional(),
   pages: z.array(generatedPage).min(3).max(12),
 });
 export type GeneratedDeck = z.infer<typeof generatedDeckSchema>;
@@ -86,6 +90,7 @@ Aspetto, scelto per l'argomento:
 - theme: uno di ${THEMES.map((t) => `${t.id} (${t.name}, stile ${STYLE_NAMES[t.kind]}: ${t.mood})`).join("; ")}.
 - decor: 3-4 disegni per i margini e le icone, scelti tra: ${ILLUSTRATION_IDS.join(", ")}, leaf, star, heart, drop, moon, cloud, wave, sun.
 - photoQuery: 1-4 parole concrete per cercare foto su Wikimedia Commons (solo se richieste).
+- look3d: gli oggetti 3D realistici di copertine, sezioni e chiusura. material e second tra: ${MATERIALS_3D.join(", ")}; forms: 3 forme tra ${FORMS_3D.join(", ")}. Scegli in modo evocativo per l'argomento (per esempio l'acqua: vetro e gocce; la finanza: metallo e monete; la chimica: vetro e molecola; l'arte classica: marmo e colonna ritorta).
 
 Layout disponibili e campi che leggono:
 ${LAYOUT_IDS.map((id) => `- ${id}: ${LAYOUT_GUIDE[id]}`).join("\n")}
@@ -151,7 +156,11 @@ export function docFromGenerated(g: GeneratedDeck, forcedTheme?: ThemeId): { tit
       return p.notes ? { ...page, notes: p.notes } : page;
     });
   if (pages.length < 3) return null;
-  const doc: PresentationDoc = { version: 1, pages, settings: { autoAdvance: 0, theme: themeId, ...(decor.length ? { decor } : {}) } };
+  let doc: PresentationDoc = { version: 1, pages, settings: { autoAdvance: 0, theme: themeId, ...(decor.length ? { decor } : {}) } };
+  const l = g.look3d;
+  if (l && isMaterial3D(l.material) && isMaterial3D(l.second) && l.forms.every(isForm3D)) {
+    doc = applyLook3D(doc, { material: l.material, second: l.second, forms: l.forms as [Form3D, Form3D, Form3D] });
+  }
   if (!documentSchema.safeParse(doc).success) return null;
   return { title: g.title, doc, photoQuery: g.photoQuery };
 }

@@ -13,6 +13,9 @@ import { GuestBanner } from "@/components/guest-banner";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { ShapeMenu } from "./shape-menu";
+import { Object3DMenu } from "./object3d-panel";
+import { getTheme } from "@/lib/editor/themes";
+import { style3D } from "@/lib/three/styles";
 import { PhotoSearch } from "./photo-search";
 import { currentPage, initState, reducer } from "./store";
 import { publishAction, saveDocumentAction, unpublishAction } from "./actions";
@@ -259,6 +262,15 @@ export function Editor(props: {
               </button>
               ),
             )}
+            <Object3DMenu
+              palette={(() => {
+                const t = getTheme(state.doc.settings?.theme ?? "notte");
+                const look = style3D(t.id);
+                const colors = state.doc.settings?.colors;
+                return { main: look.material, second: look.second, accent: colors?.accent ?? t.palette.accent, accent2: colors?.accent2 ?? t.palette.accent2, tint: t.palette.coverBg2 };
+              })()}
+              onAdd={(elements) => dispatch({ type: "add-elements", elements })}
+            />
             <button onClick={() => setFindingPhoto(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper">
               <span aria-hidden className="text-violet">✿</span>
               Foto gratis

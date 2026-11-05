@@ -2,7 +2,9 @@ import type { CSSProperties } from "react";
 import type { Element, Page } from "@/lib/editor/schema";
 import { FONT_FAMILY } from "@/lib/editor/schema";
 import { fillRule, isSvgShape, SVG_SHAPES } from "@/lib/editor/shapes";
+import type { Relief } from "@/lib/three/ids";
 import { FitStage } from "./fit-stage";
+import { Object3DView } from "./object3d";
 
 /** A flat colour, or a linear gradient when a second colour is set. */
 export function paint(c1: string, c2?: string, angle = 135) {
@@ -35,9 +37,46 @@ export const pageBackground = (p: Page) => {
   return layers ? `${layers}, ${base}` : base;
 };
 
-/** Pure visual rendering of one element, in canvas units. Text is always rendered as text, never HTML. */
-export function ElementBody({ el }: { el: Element }) {
+/**
+ * SVG lighting that turns a flat drawing into a 3D one: the shape's own
+ * outline becomes a height map, lit by a point light from the top left.
+ * "gonfio" puffs it up like an inflated toy, "inciso" carves it in, "smalto"
+ * adds a glossy enamel coat with a sharp highlight.
+ */
+function ReliefFilter({ id, relief }: { id: string; relief: Exclude<Relief, "none"> }) {
+  const carved = relief === "inciso";
+  const blur = relief === "smalto" ? 2.2 : 3.4;
+  const spec = relief === "smalto" ? { exp: 34, k: 1.6 } : { exp: 16, k: 0.9 };
+  return (
+    <filter id={id} x="-30%" y="-30%" width="160%" height="170%" colorInterpolationFilters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation={blur} result="h" />
+      {carved && <feComponentTransfer in="h" result="h"><feFuncA type="table" tableValues="1 0" /></feComponentTransfer>}
+      <feSpecularLighting in="h" surfaceScale={carved ? 4 : 6} specularConstant={spec.k} specularExponent={spec.exp} lightingColor="#ffffff" result="spec">
+        <fePointLight x={-40} y={-60} z={120} />
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specIn" />
+      <feDiffuseLighting in="h" surfaceScale={carved ? 4 : 6} diffuseConstant={1} lightingColor="#ffffff" result="dif">
+        <feDistantLight azimuth={225} elevation={48} />
+      </feDiffuseLighting>
+      <feComposite in="SourceGraphic" in2="dif" operator="arithmetic" k1={1.25} k2={0} k3={0} k4={0} result="lit" />
+      <feComposite in="lit" in2="SourceAlpha" operator="in" result="litIn" />
+      <feComposite in="specIn" in2="litIn" operator="arithmetic" k1={0} k2={0.55} k3={1} k4={0} result="body" />
+      <feGaussianBlur in="SourceAlpha" stdDeviation={carved ? 1.2 : 4} result="sb" />
+      <feOffset in="sb" dx={carved ? -1 : 3} dy={carved ? -1 : 6} result="so" />
+      <feComponentTransfer in="so" result="shadow"><feFuncA type="linear" slope={carved ? 0.35 : 0.32} /></feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow" />
+        <feMergeNode in="body" />
+      </feMerge>
+    </filter>
+  );
+}
+
+/** Pure visual rendering of one element, in canvas units. Text is always rendered as text, never HTML. `live` animates 3D objects. */
+export function ElementBody({ el, live = false }: { el: Element; live?: boolean }) {
   switch (el.type) {
+    case "object3d":
+      return <Object3DView el={el} live={live} />;
     case "text":
       return (
         <div
@@ -78,27 +117,45 @@ export function ElementBody({ el }: { el: Element }) {
       if (isSvgShape(el.shape)) {
         // The gradient id must be unique on the page: thumbnails repeat the same element.
         const gid = `g-${el.id}-${Math.round(el.w)}`;
+        const relief = el.relief && el.relief !== "none" ? el.relief : null;
+        const fid = `r-${el.id}-${Math.round(el.w)}`;
         // SVG gradients go left to right; CSS angles count from "to top": turn by angle − 90.
+        // With relief the drawing is lit in its own pixels (the viewBox is scaled by the
+        // element size so the light looks the same at any size).
         return (
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" style={{ display: "block", overflow: "visible" }} aria-hidden>
-            {el.color2 && (
+          <svg
+            viewBox={relief ? `0 0 ${Math.round(el.w)} ${Math.round(el.h)}` : "0 0 100 100"}
+            preserveAspectRatio="none"
+            width="100%"
+            height="100%"
+            style={{ display: "block", overflow: "visible" }}
+            aria-hidden
+          >
+            {(el.color2 || relief) && (
               <defs>
-                <linearGradient id={gid} gradientTransform={`rotate(${(el.angle ?? 135) - 90} 0.5 0.5)`}>
-                  <stop offset="0" stopColor={el.fill} />
-                  <stop offset="1" stopColor={el.color2} />
-                </linearGradient>
+                {el.color2 && (
+                  <linearGradient id={gid} gradientTransform={`rotate(${(el.angle ?? 135) - 90} 0.5 0.5)`}>
+                    <stop offset="0" stopColor={el.fill} />
+                    <stop offset="1" stopColor={el.color2} />
+                  </linearGradient>
+                )}
+                {relief && <ReliefFilter id={fid} relief={relief} />}
               </defs>
             )}
-            <path
-              d={SVG_SHAPES[el.shape].d}
-              fill={el.color2 ? `url(#${gid})` : el.fill}
-              fillRule={fillRule(el.shape)}
-              stroke={el.stroke && el.strokeWidth ? el.stroke : undefined}
-              strokeWidth={el.stroke && el.strokeWidth ? el.strokeWidth : undefined}
-              strokeLinejoin="round"
-              // The outline keeps its thickness however the shape is stretched.
-              vectorEffect="non-scaling-stroke"
-            />
+            {/* The filter sits on the group, so it works in element pixels whatever the path's scale. */}
+            <g filter={relief ? `url(#${fid})` : undefined}>
+              <path
+                transform={relief ? `scale(${el.w / 100} ${el.h / 100})` : undefined}
+                d={SVG_SHAPES[el.shape].d}
+                fill={el.color2 ? `url(#${gid})` : el.fill}
+                fillRule={fillRule(el.shape)}
+                stroke={el.stroke && el.strokeWidth ? el.stroke : undefined}
+                strokeWidth={el.stroke && el.strokeWidth ? el.strokeWidth : undefined}
+                strokeLinejoin="round"
+                // The outline keeps its thickness however the shape is stretched.
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
           </svg>
         );
       }

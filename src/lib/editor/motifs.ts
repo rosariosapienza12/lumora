@@ -1,3 +1,4 @@
+import { style3D } from "../three/styles";
 import type { Element, Page, PresentationDoc } from "./schema";
 import { CANVAS_H, CANVAS_W, newId } from "./schema";
 import type { SvgShape } from "./shapes";
@@ -212,7 +213,8 @@ export function decoratePage(page: Page, motif: MotifId | SvgShape[], t: Theme, 
         shape,
         ...box,
         rotation: spot.rotation,
-        opacity: cover ? 0.32 : second ? 0.24 : 0.17,
+        opacity: cover ? 0.9 : second ? 0.62 : 0.72,
+        relief: style3D(t.id).relief,
         hidden: false,
         locked: true,
         decor: true,
