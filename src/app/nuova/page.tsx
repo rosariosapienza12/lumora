@@ -11,6 +11,9 @@ import { SlideThumb } from "@/components/slide/element-view";
 import { Button, ButtonLink, Logo } from "@/components/ui";
 import { createFromDeckAction } from "./actions";
 
+/** Zib writes whole presentations with AI: creating one can take up to a minute or two. */
+export const maxDuration = 120;
+
 export const metadata: Metadata = { title: "Nuova presentazione da Zib" };
 
 /** Preview of the outline Zib proposed, then one click to create it. */

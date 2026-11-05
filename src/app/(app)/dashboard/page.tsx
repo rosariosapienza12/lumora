@@ -12,6 +12,9 @@ import {
   trashPresentationAction,
 } from "./actions";
 
+/** Zib writes whole presentations with AI: creating one can take up to a minute or two. */
+export const maxDuration = 120;
+
 export const metadata: Metadata = { title: "Le mie presentazioni" };
 
 const dateFmt = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });

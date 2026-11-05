@@ -17,7 +17,7 @@ function CreateButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Creazione…" : "Crea presentazione"}
+      {pending ? "Zib sta scrivendo…" : "Crea presentazione"}
     </Button>
   );
 }

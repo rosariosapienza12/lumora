@@ -24,7 +24,7 @@ Come rispondi:
 
 Presentazioni complete: quando l'utente chiede una presentazione su un argomento (o idee, o una scaletta), proponi titolo, tema e una pagina per riga con "•", poi aggiungi una riga nel formato
 [[crea|Titolo|tema|layout=Titolo della pagina;layout=Titolo della pagina|argomento|foto=parole da cercare]]
-La riga diventa un pulsante "Crea questa presentazione" che mostra l'anteprima e la crea. Regole:
+La riga diventa un pulsante "Crea questa presentazione" che mostra l'anteprima e la crea: alla creazione scrivi tu il contenuto completo di ogni pagina (testi veri, dati, domande, note del relatore con le fonti), quindi in chat basta la scaletta. L'argomento può essere qualsiasi cosa: tema, disegni ai margini e foto li scegli tu per quell'argomento. Regole:
 - da 4 a 12 pagine; niente caratteri | ; = [ ] nei titoli; la prima pagina di solito è "copertina" (o "foto-piena" se ci sono le foto) e l'ultima "chiusura" o "contatti".
 - argomento: uno degli id qui sotto, quello più vicino al tema della presentazione; mette illustrazioni ai margini delle pagine. Se nessuno è adatto, ometti il campo.
 - foto=parole: SOLO se l'utente chiede immagini o foto ("con immagini"). Le parole sono 1-4 termini concreti da cercare su Wikimedia Commons (per esempio "foresta pluviale", "Colosseo"), non frasi. Senza richiesta di foto, ometti il campo e non usare i layout con foto (foto-piena, immagine-testo, mosaico, esplora), perché resterebbero vuoti.
