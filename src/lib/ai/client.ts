@@ -22,7 +22,8 @@ type OpenAiProvider = { name: "gemini" | "groq" | "openrouter"; base: string; ke
 type Provider = OpenAiProvider | { name: "anthropic"; key: string; model: string };
 
 const DEFAULT_MODEL = {
-  gemini: "gemini-2.5-flash",
+  // An alias that always points to Google's current Flash model (free tier).
+  gemini: "gemini-flash-latest",
   groq: "llama-3.3-70b-versatile",
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   anthropic: "claude-opus-5-5",
@@ -63,6 +64,28 @@ async function openAi(p: OpenAiProvider, body: Record<string, unknown>, signal?:
   return res;
 }
 
+/** Models tried in turn when the chosen one is unknown or overloaded (a model can be retired). */
+const BACKUP_MODELS: Record<OpenAiProvider["name"], string[]> = {
+  gemini: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-lite-latest"],
+  groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  openrouter: ["meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-chat-v3-0324:free"],
+};
+
+/** Calls the provider, moving on to a backup model on 404 (retired model) or 429/503 (busy). */
+async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown>) {
+  const models = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
+  let last: unknown;
+  for (const model of models) {
+    try {
+      return await openAi({ ...p, model }, body);
+    } catch (err) {
+      last = err;
+      if (!/ (404|429|503|400): /.test(String(err instanceof Error ? err.message : err))) break;
+    }
+  }
+  throw last;
+}
+
 /** Streams an answer, chunk by chunk. */
 export async function* streamChat(o: { system: string; messages: Msg[]; maxTokens: number }): AsyncGenerator<string> {
   const p = provider();
@@ -72,7 +95,7 @@ export async function* streamChat(o: { system: string; messages: Msg[]; maxToken
     for await (const ev of stream) if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") yield ev.delta.text;
     return;
   }
-  const res = await openAi(p, { stream: true, max_tokens: o.maxTokens, messages: [{ role: "system", content: o.system }, ...o.messages] });
+  const res = await openAiWithBackups(p, { stream: true, max_tokens: o.maxTokens, messages: [{ role: "system", content: o.system }, ...o.messages] });
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buf = "";
@@ -138,7 +161,7 @@ export async function chatJson<T extends z.ZodTypeAny>(o: { system: string; prom
       const call = res.content.find((b) => b.type === "tool_use");
       input = call && call.type === "tool_use" ? call.input : null;
     } else {
-      const res = await openAi(p, {
+      const res = await openAiWithBackups(p, {
         max_tokens: o.maxTokens,
         messages: [
           { role: "system", content: o.system },

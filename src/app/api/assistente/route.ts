@@ -31,7 +31,7 @@ const bodySchema = z.object({
 const error = (message: string, status: number) => NextResponse.json({ error: message }, { status });
 
 /** Streams text to the client, one chunk at a time. */
-function textStream(produce: (write: (text: string) => void) => Promise<void>) {
+function textStream(produce: (write: (text: string) => void) => Promise<void>, mode = "ai") {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -45,7 +45,8 @@ function textStream(produce: (write: (text: string) => void) => Promise<void>) {
     },
   });
   return new Response(stream, {
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+    // X-Zib-Mode says which brain answered (no secrets): "ai:<provider>" or "offline".
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Zib-Mode": mode },
   });
 }
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
   const aiAllowed = ai !== null && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
   if (!aiAllowed) {
     const answer = brainAnswer(messages);
-    return textStream(async (write) => write(answer));
+    return textStream(async (write) => write(answer), ai ? "offline:budget" : "offline:no-key");
   }
 
   if (ai.name !== "anthropic") {
@@ -95,7 +96,7 @@ ${pageContext(page)}`, messages, maxTokens: 2048 })) {
         console.error("free ai failed", err instanceof Error ? err.message : err);
       }
       if (!wrote) write(brainAnswer(messages));
-    });
+    }, `ai:${ai.name}`);
   }
 
   client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
