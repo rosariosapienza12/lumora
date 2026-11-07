@@ -78,8 +78,16 @@ uniform sampler2D uTex, uAux;
 uniform float uHasTex, uPhase, uCloudPhase, uTilt, uLimb, uRinged, uHover, uRadius, uExtent, uAtmoOn, uFade;
 uniform vec3 uL, uAtmo, uBase, uGlow;
 uniform mat3 uCamInv;
+uniform float uAxisX;
 ${COMMON}
-vec3 toBody(vec3 v){ vec3 w = uCamInv * v; float c=cos(uTilt), s=sin(uTilt); return vec3(c*w.x+s*w.y, -s*w.x+c*w.y, w.z); }
+// Axial tilt: towards the viewer (uAxisX, opens the rings) and sideways (uTilt).
+vec3 toBody(vec3 v){
+  vec3 w = uCamInv * v;
+  float ca=cos(uAxisX), sa=sin(uAxisX);
+  w = vec3(w.x, ca*w.y - sa*w.z, sa*w.y + ca*w.z);
+  float c=cos(uTilt), s=sin(uTilt);
+  return vec3(c*w.x+s*w.y, -s*w.x+c*w.y, w.z);
+}
 vec4 eq(sampler2D t, vec3 b, float phase){
   vec2 uv = vec2(atan(b.z, b.x)/6.2831853 + 0.5 + phase, 0.5 - asin(clamp(b.y,-1.0,1.0))/3.14159265);
   vec2 uv2 = vec2(fract(uv.x + 0.5), uv.y);
@@ -96,7 +104,8 @@ vec4 ring(float r, float fw){
   vec3 c = t < 0.4 ? mix(vec3(1.0,0.86,0.63), vec3(1.0,0.73,0.77), t/0.4)
          : t < 0.7 ? mix(vec3(1.0,0.73,0.77), vec3(0.75,0.66,1.0), (t-0.4)/0.3)
          : mix(vec3(0.75,0.66,1.0), vec3(0.59,0.9,0.93), (t-0.7)/0.3);
-  float fine = mix(0.55 + 0.45*sin(r*97.0)*sin(r*41.0), 0.55, smoothstep(0.02, 0.07, fw));
+  // When the ringlets are too fine for the pixels, a fuller average keeps small rings visible.
+  float fine = mix(0.55 + 0.45*sin(r*97.0)*sin(r*41.0), 0.85, smoothstep(0.02, 0.07, fw));
   float band = exp(-pow((r-1.45)/0.22, 2.0))*0.5 + 0.35;
   float gap = mix(1.0, 0.08, smoothstep(0.035 + fw, 0.035 - fw, abs(r-1.6)));
   float edge = clamp(min((r-1.2)/max(0.08, fw), (2.02-r)/max(0.12, fw)), 0.0, 1.0);
@@ -231,6 +240,9 @@ out vec4 o;
 void main(){ float a = clamp(uHalf - abs(vEdge) + 0.5, 0.0, 1.0) * vAlpha * uAlpha; o = vec4(uColor * a, a); }`;
 
 type Prog = { p: WebGLProgram; u: (name: string) => WebGLUniformLocation | null };
+
+/** Extra lean of a ringed planet's axis towards the viewer, in radians. */
+const RING_LEAN = 0.3;
 
 const hexRgb = (c: [number, number, number]) => c.map((v) => v / 255) as [number, number, number];
 
@@ -428,6 +440,9 @@ export class SolarGL {
     gl.uniform1f(u("uPhase"), pl.phase);
     gl.uniform1f(u("uCloudPhase"), pl.phase * 1.25);
     gl.uniform1f(u("uTilt"), pl.tilt);
+    // Ringed worlds lean towards the viewer, so the far side of the rings shows above the planet.
+    // The rings open by (camera pitch + lean): leaning the north pole towards the camera.
+    gl.uniform1f(u("uAxisX"), ringed ? -RING_LEAN : 0);
     gl.uniform1f(u("uLimb"), LIMB[pl.kind]);
     gl.uniform1f(u("uRinged"), ringed ? 1 : 0);
     gl.uniform1f(u("uHover"), pl.hover);
