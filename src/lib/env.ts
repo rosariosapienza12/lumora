@@ -22,6 +22,8 @@ export const envSchema = z
     // The same Google key under the names other tools use.
     GOOGLE_API_KEY: optional(z.string().regex(/^[A-Za-z0-9_-]{20,}$/, "GOOGLE_API_KEY is not a valid key")),
     GOOGLE_GENERATIVE_AI_API_KEY: optional(z.string().regex(/^[A-Za-z0-9_-]{20,}$/, "GOOGLE_GENERATIVE_AI_API_KEY is not a valid key")),
+    // A name people use for the same key: never blocks the site; an odd value just leaves Zib offline.
+    GeminiAPIKey: z.preprocess((v) => (typeof v === "string" && /^[A-Za-z0-9_-]{20,}$/.test(v.trim().replace(/^["']|["']$/g, "")) ? v.trim().replace(/^["']|["']$/g, "") : undefined), z.string().optional()),
     // Groq free tier (https://console.groq.com/keys),
     GROQ_API_KEY: optional(z.string().regex(/^gsk_[A-Za-z0-9]{20,}$/, "GROQ_API_KEY is not a valid Groq key")),
     // OpenRouter, models marked ":free" (https://openrouter.ai/keys).
