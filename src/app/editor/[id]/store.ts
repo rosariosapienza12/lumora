@@ -3,6 +3,7 @@ import { applyLook3D, relookPage, style3D, type Look3D } from "@/lib/three/style
 import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, isLayoutId, relatedLayouts, type LayoutId } from "@/lib/editor/layouts";
+import { setAt, type PageContent } from "@/lib/editor/content";
 import type { Pattern } from "@/lib/editor/themes";
 import { applyTheme, getTheme, modernTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
@@ -43,6 +44,8 @@ export type Action =
   | { type: "decor-density"; density: number }
   /** Materials and forms of every 3D object in the presentation. */
   | { type: "look-3d"; look: Look3D }
+  /** New words for a page drawn from a layout: the page re-composes itself around them (smart layout). */
+  | { type: "page-content"; content: PageContent; coalesce?: boolean }
   /** Re-assembles the whole presentation in the current clean style (see restyle in store.ts). */
   | { type: "restyle" }
   /** Redraw the current page with the next layout that can show the same words. */
@@ -186,6 +189,34 @@ export function restyle(doc: PresentationDoc): PresentationDoc {
   return { ...themed, pages, settings: { ...settings, autoAdvance: settings.autoAdvance ?? 0, theme: themeId } };
 }
 
+/**
+ * Smart layout: the page is drawn again from new words in its layout, like
+ * Beautiful.ai — add a point and the others make room. What was added by hand
+ * stays, photos go back into the photo spaces in order, links to other pages
+ * move to a free spot. Id, notes and transition are kept.
+ */
+export function recompose(page: Page, content: PageContent, doc: PresentationDoc): Page {
+  if (!page.source || !isLayoutId(page.source.layout)) return page;
+  const theme = getTheme(doc.settings?.theme);
+  const { motif, decor } = doc.settings ?? {};
+  const built = buildLayout(page.source.layout, theme, content, { motif, icons: decor });
+  const photos = page.elements.filter((e) => e.type === "image" && !e.extra);
+  let next = 0;
+  const elements = built.elements.map((e) => {
+    if (e.type === "shape" && e.photoSlot && next < photos.length) {
+      const ph = photos[next++];
+      return { ...ph, x: e.x, y: e.y, w: e.w, h: e.h, rotation: e.rotation } as Element;
+    }
+    return e;
+  });
+  const out: Page = { ...built, id: page.id, name: page.name, notes: page.notes, transition: page.transition, background: page.background, ...(page.color2 ? { color2: page.color2, angle: page.angle } : {}), elements };
+  for (const e of page.elements) {
+    if (e.extra) out.elements.push(e);
+    else if (e.type === "button" && e.interaction?.action.kind === "goto") out.elements.push({ ...e, ...freeSpot(out, e.w, e.h) });
+  }
+  return out;
+}
+
 /** Removes references to elements/pages that no longer exist. */
 function pruneRefs(doc: PresentationDoc): PresentationDoc {
   const pageIds = new Set(doc.pages.map((p) => p.id));
@@ -263,7 +294,7 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "update-page":
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, ...action.patch })));
     case "add-element": {
-      const el = createElement(action.kind, action.src, action.alt, action.shape);
+      const el = { ...createElement(action.kind, action.src, action.alt, action.shape), extra: true } as Element;
       // Elements added one after another are cascaded instead of stacking on the same spot.
       for (let i = 0; i < 12 && page.elements.some((e) => e.x === el.x && e.y === el.y); i++) {
         el.x += 40;
@@ -273,19 +304,29 @@ export function reducer(state: EditorState, action: Action): EditorState {
     }
     case "add-elements": {
       if (!action.elements.length) return state;
-      const fresh = action.elements.map((e) => ({ ...e, id: newId() }) as Element);
+      const fresh = action.elements.map((e) => ({ ...e, id: newId(), extra: true }) as Element);
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, ...fresh] })), { selectedId: fresh[0].id });
     }
     case "update-element":
       return commit(
         state,
-        mapPage(state.doc, page.id, (p) => ({
-          ...p,
-          elements: p.elements.map((e) => (e.id === action.id ? ({ ...e, ...action.patch } as Element) : e)),
-        })),
+        mapPage(state.doc, page.id, (p) => {
+          const target = p.elements.find((e) => e.id === action.id);
+          const text = "text" in action.patch ? (action.patch as { text?: string }).text : undefined;
+          // A text bound to a content field updates the page's words too, so the page can re-compose itself.
+          const source =
+            p.source && target?.type === "text" && target.bind && typeof text === "string" ? { ...p.source, content: setAt(p.source.content, target.bind, text) } : p.source;
+          return {
+            ...p,
+            ...(source ? { source } : {}),
+            elements: p.elements.map((e) => (e.id === action.id ? ({ ...e, ...action.patch } as Element) : e)),
+          };
+        }),
         {},
         action.coalesce,
       );
+    case "page-content":
+      return commit(state, mapPage(state.doc, page.id, (p) => recompose(p, action.content, state.doc)), {}, action.coalesce);
     case "delete-element":
       return commit(
         state,
@@ -378,7 +419,7 @@ export function reducer(state: EditorState, action: Action): EditorState {
       if (target) {
         return commit(state, withCreditsPage(mapPage(state.doc, page.id, (p) => ({ ...p, elements: p.elements.map((e) => (e.id === target.id ? photoElement(e, action.photo) : e)) }))), { selectedId: target.id });
       }
-      const el = photoElement(createElement("image"), action.photo);
+      const el = { ...photoElement(createElement("image"), action.photo), extra: true } as Element;
       // Keep the photo's own proportions inside a 640-wide box.
       el.h = Math.round(Math.min(640, (640 * action.photo.height) / action.photo.width));
       el.y = Math.round((CANVAS_H - el.h) / 2);

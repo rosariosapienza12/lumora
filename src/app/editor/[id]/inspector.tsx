@@ -5,6 +5,7 @@ import { isSvgShape, MENU_SHAPES, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/s
 import { RELIEF_NAMES, RELIEFS } from "@/lib/three/ids";
 import { Look3DControls, Object3DControls } from "./object3d-panel";
 import { ChartControls, IconControls } from "./chart-panel";
+import { ContentPanel } from "./content-panel";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, getTheme, PATTERNS, type Pattern } from "@/lib/editor/themes";
@@ -37,6 +38,7 @@ const TRANSITION_LABELS: Record<(typeof TRANSITIONS)[number], string> = {
   "slide-up": "Scorrimento verticale",
   zoom: "Zoom",
   flip: "Rotazione 3D",
+  morph: "Morph: gli elementi uguali si spostano",
 };
 
 const inputCls = "w-full rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm outline-none focus:border-violet";
@@ -147,6 +149,11 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
   if (!el) {
     return (
       <div>
+        {page.source && (
+          <Section title="Contenuto della pagina">
+            <ContentPanel key={page.id} page={page} onContent={(content) => dispatch({ type: "page-content", content })} />
+          </Section>
+        )}
         <Section title="Pagina">
           <Row label="Nome">
             <input className={inputCls} value={page.name} maxLength={80} onChange={(e) => dispatch({ type: "update-page", patch: { name: e.target.value } })} />
@@ -167,6 +174,16 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
           <button onClick={() => dispatch({ type: "transition-all", transition: page.transition })} className={chip}>
             Usa questa transizione per tutte le pagine
           </button>
+          {page.transition === "morph" && (
+            <p className="text-xs text-ink-soft">Gli elementi uguali alla pagina precedente (stesso testo, foto, icona o forma) scivolano nella nuova posizione. Duplica una pagina e sposta gli elementi per vederlo.</p>
+          )}
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1 accent-violet" checked={Boolean(page.build)} onChange={(e) => dispatch({ type: "update-page", patch: { build: e.target.checked || undefined } })} />
+            <span>
+              Un blocco alla volta
+              <span className="block text-xs text-ink-soft">In presentazione i punti compaiono a ogni clic, nell&apos;ordine di lettura.</span>
+            </span>
+          </label>
           <Row label="Motivo di sfondo">
             <select className={inputCls} value={page.pattern ?? "none"} onChange={(e) => dispatch({ type: "pattern", pattern: e.target.value as Pattern })}>
               {PATTERNS.map((pt) => (

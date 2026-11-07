@@ -50,3 +50,57 @@ export function fitSize(text: string, w: number, h: number, max: number, min = 1
   }
   return min;
 }
+
+/**
+ * A field of the content, as a path: "heading", "items.2.title",
+ * "stats.0.value", "quote.text", "question.right"…
+ */
+export const CONTENT_PATH = /^(heading|subtitle|body|highlight|(items|stats)\.\d{1,2}\.(title|text|value|label)|quote\.(text|author)|question\.(text|right|wrong|explanation))$/;
+
+/** The text at a path, if the content has it. */
+export function getAt(c: PageContent, path: string): string | undefined {
+  const [a, b, d] = path.split(".");
+  const v = (c as Record<string, unknown>)[a];
+  if (b === undefined) return typeof v === "string" ? v : undefined;
+  if (d === undefined) return typeof (v as Record<string, unknown> | undefined)?.[b] === "string" ? ((v as Record<string, string>)[b]) : undefined;
+  const row = Array.isArray(v) ? (v[Number(b)] as Record<string, unknown> | undefined) : undefined;
+  return typeof row?.[d] === "string" ? (row[d] as string) : undefined;
+}
+
+/** A copy of the content with the text at `path` replaced (rows are created when missing). */
+export function setAt(c: PageContent, path: string, value: string): PageContent {
+  if (!CONTENT_PATH.test(path)) return c;
+  const [a, b, d] = path.split(".");
+  const next = structuredClone(c) as Record<string, unknown>;
+  if (b === undefined) next[a] = value;
+  else if (d === undefined) next[a] = { ...((next[a] as object) ?? {}), [b]: value };
+  else {
+    const list = [...((next[a] as Record<string, unknown>[]) ?? [])];
+    const i = Number(b);
+    while (list.length <= i) list.push(a === "stats" ? { value: "", label: "" } : { title: "" });
+    list[i] = { ...list[i], [d]: value };
+    next[a] = list;
+  }
+  return next as PageContent;
+}
+
+/** Every text field of the content with its path (to recognise which text on the page shows which field). */
+export function contentFields(c: PageContent): [path: string, text: string][] {
+  const out: [string, string][] = [];
+  for (const k of ["heading", "subtitle", "body", "highlight"] as const) if (c[k]) out.push([k, c[k]!]);
+  c.items?.forEach((it, i) => {
+    if (it.title) out.push([`items.${i}.title`, it.title]);
+    if (it.text) out.push([`items.${i}.text`, it.text]);
+  });
+  c.stats?.forEach((s, i) => {
+    if (s.value) out.push([`stats.${i}.value`, s.value]);
+    if (s.label) out.push([`stats.${i}.label`, s.label]);
+    if (s.text) out.push([`stats.${i}.text`, s.text]);
+  });
+  if (c.quote) out.push(["quote.text", c.quote.text], ["quote.author", c.quote.author]);
+  if (c.question) {
+    out.push(["question.text", c.question.text], ["question.right", c.question.right], ["question.wrong", c.question.wrong]);
+    if (c.question.explanation) out.push(["question.explanation", c.question.explanation]);
+  }
+  return out;
+}

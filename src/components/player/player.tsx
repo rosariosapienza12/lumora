@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
 import type { Element, PresentationDoc } from "@/lib/editor/schema";
 import { ElementBody, elementBox, pageBackground, SHADOW } from "@/components/slide/element-view";
 import { FitStage } from "@/components/slide/fit-stage";
+import { buildSteps, morphMatches } from "@/lib/editor/effects";
 import { emphasisLoop, enterFrom, enterTo, pageVariants } from "./motion-presets";
 
 type Popup = { title: string; body: string };
@@ -34,7 +35,13 @@ export function Player({
   /** Presenter mode: speaker notes, next page and a timer (only for the author, never in public views). */
   presenter?: boolean;
 }) {
-  const [[index, direction], setPage] = useState<[number, number]>([Math.min(startIndex, doc.pages.length - 1), 1]);
+  // The page shown, the direction of travel and the page we came from (for the Morph transition).
+  const [[index, direction, from], setPage] = useState<[number, number, number | null]>([Math.min(startIndex, doc.pages.length - 1), 1, null]);
+  /** "One at a time" pages: how many blocks are shown. */
+  const [step, setStep] = useState(0);
+  /** Laser pointer or spotlight that follows the mouse while presenting (keys L and S). */
+  const [pointer, setPointer] = useState<"none" | "laser" | "spot">("none");
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [popup, setPopup] = useState<Popup | null>(null);
   const [tooltip, setTooltip] = useState<{ id: string; text: string } | null>(null);
@@ -56,7 +63,9 @@ export function Player({
   const go = useCallback(
     (to: number) => {
       if (to < 0 || to >= doc.pages.length || to === index) return;
-      setPage([to, to > index ? 1 : -1]);
+      setPage([to, to > index ? 1 : -1, index]);
+      // Going back lands on a page fully built; going forward starts it from the first block.
+      setStep(to > index ? 0 : Number.MAX_SAFE_INTEGER);
       setRevealed(new Set());
       setPopup(null);
       setTooltip(null);
@@ -89,6 +98,20 @@ export function Player({
     [doc.pages, go],
   );
 
+  // "One at a time": the page's blocks, and which are visible now.
+  const steps = useMemo(() => (page.build ? buildSteps(page) : null), [page]);
+  const shownStep = steps ? Math.min(step, steps.length - 1) : 0;
+  const visible = useMemo(() => (steps ? new Set(steps.slice(0, shownStep + 1).flat()) : null), [steps, shownStep]);
+  const next = useCallback(() => {
+    if (steps && shownStep < steps.length - 1) setStep(shownStep + 1);
+    else go(index + 1);
+  }, [steps, shownStep, go, index]);
+  const prev = useCallback(() => {
+    if (steps && shownStep > 0) setStep(shownStep - 1);
+    else go(index - 1);
+  }, [steps, shownStep, go, index]);
+  const morph = useMemo(() => (page.transition === "morph" && from !== null && doc.pages[from] ? morphMatches(doc.pages[from], page) : null), [page, from, doc.pages]);
+
   // Auto-advance, paused while a window or a link confirmation is open.
   useEffect(() => {
     if (!autoAdvance || popup || pendingLink || index >= doc.pages.length - 1) return;
@@ -106,14 +129,19 @@ export function Player({
         }
         return;
       }
-      if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") go(index + 1);
-      else if (e.key === "ArrowLeft" || e.key === "PageUp") go(index - 1);
-      else if (e.key === "Escape") onClose?.();
+      if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") next();
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") prev();
+      else if (e.key === "Escape") {
+        if (pointer !== "none") setPointer("none");
+        else onClose?.();
+      }
       else if (presenter && e.key.toLowerCase() === "n") setShowNotes((v) => !v);
+      else if (e.key.toLowerCase() === "l") setPointer((m) => (m === "laser" ? "none" : "laser"));
+      else if (e.key.toLowerCase() === "s") setPointer((m) => (m === "spot" ? "none" : "spot"));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [globalKeys, go, index, onClose, popup, pendingLink, presenter]);
+  }, [globalKeys, next, prev, onClose, popup, pendingLink, presenter, pointer]);
 
   const fullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -125,7 +153,16 @@ export function Player({
   return (
     <MotionConfig reducedMotion="user">
       <div ref={rootRef} className="relative flex h-full w-full flex-col bg-[#0f0d22]">
-        <div className="relative flex-1" style={{ perspective: 1600 }}>
+        <div
+          className="relative flex-1"
+          style={{ perspective: 1600, cursor: pointer !== "none" ? "none" : undefined }}
+          onPointerMove={(e) => {
+            if (pointer === "none") return;
+            const r = e.currentTarget.getBoundingClientRect();
+            setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+          }}
+          onPointerLeave={() => setPos(null)}
+        >
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={page.id}
@@ -140,11 +177,20 @@ export function Player({
               <FitStage background={pageBackground(page)} contain>
                 {page.elements.map((el) => {
                   if (el.hidden && !revealed.has(el.id)) return null;
-                  return <PlayerElement key={el.id} el={el} onRun={run} tooltip={tooltip?.id === el.id ? tooltip.text : null} setTooltip={setTooltip} />;
+                  if (visible && !visible.has(el.id)) return null;
+                  return <PlayerElement key={el.id} el={el} morphFrom={reduce ? undefined : morph?.get(el.id)} onRun={run} tooltip={tooltip?.id === el.id ? tooltip.text : null} setTooltip={setTooltip} />;
                 })}
               </FitStage>
             </motion.div>
           </AnimatePresence>
+
+          {/* Laser pointer and spotlight, to point at things while speaking. */}
+          {pointer === "laser" && pos && (
+            <div aria-hidden className="pointer-events-none absolute z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ff3b3b]" style={{ left: pos.x, top: pos.y, boxShadow: "0 0 12px 5px rgba(255,59,59,0.7), 0 0 30px 12px rgba(255,59,59,0.35)" }} />
+          )}
+          {pointer === "spot" && pos && (
+            <div aria-hidden className="pointer-events-none absolute inset-0 z-20" style={{ background: `radial-gradient(circle 170px at ${pos.x}px ${pos.y}px, transparent 0 96%, rgba(0,0,0,0.78) 100%)` }} />
+          )}
 
           <AnimatePresence>
             {pendingLink && (
@@ -252,16 +298,22 @@ export function Player({
         )}
 
         <div className="flex items-center gap-2 px-4 py-2 text-sm text-white/80">
-          <button onClick={() => go(index - 1)} disabled={index === 0} className="rounded-full px-3 py-1.5 hover:bg-white/10 disabled:opacity-30" aria-label="Pagina precedente">
+          <button onClick={prev} disabled={index === 0 && shownStep === 0} className="rounded-full px-3 py-1.5 hover:bg-white/10 disabled:opacity-30" aria-label="Indietro">
             ←
           </button>
           <span aria-live="polite">
             {index + 1} / {doc.pages.length}
           </span>
-          <button onClick={() => go(index + 1)} disabled={index === doc.pages.length - 1} className="rounded-full px-3 py-1.5 hover:bg-white/10 disabled:opacity-30" aria-label="Pagina successiva">
+          <button onClick={next} disabled={index === doc.pages.length - 1 && (!steps || shownStep >= steps.length - 1)} className="rounded-full px-3 py-1.5 hover:bg-white/10 disabled:opacity-30" aria-label="Avanti">
             →
           </button>
           <div className="ml-auto flex gap-1">
+            <button onClick={() => setPointer((m) => (m === "laser" ? "none" : "laser"))} aria-pressed={pointer === "laser"} className="rounded-full px-3 py-1.5 hover:bg-white/10 aria-pressed:bg-white/10" title="Puntatore laser (L)">
+              Laser
+            </button>
+            <button onClick={() => setPointer((m) => (m === "spot" ? "none" : "spot"))} aria-pressed={pointer === "spot"} className="rounded-full px-3 py-1.5 hover:bg-white/10 aria-pressed:bg-white/10" title="Riflettore (S)">
+              Riflettore
+            </button>
             {presenter && (
               <button onClick={() => setShowNotes((v) => !v)} aria-pressed={showNotes} className="rounded-full px-3 py-1.5 hover:bg-white/10 aria-pressed:bg-white/10" title="Mostra o nascondi le note (N)">
                 Note
@@ -284,11 +336,14 @@ export function Player({
 
 function PlayerElement({
   el,
+  morphFrom,
   onRun,
   tooltip,
   setTooltip,
 }: {
   el: Element;
+  /** Morph: where this element was on the previous page; it glides from there. */
+  morphFrom?: { x: number; y: number; w: number; h: number; rotation: number };
   onRun: (el: Element) => void;
   tooltip: string | null;
   setTooltip: (t: { id: string; text: string } | null) => void;
@@ -318,10 +373,14 @@ function PlayerElement({
 
   return (
     <motion.div
-      style={{ ...elementBox(el), cursor: interactive ? "pointer" : undefined, opacity: undefined }}
-      initial={enterFrom[el.animation.enter]}
-      animate={{ ...enterTo, opacity: el.opacity }}
-      transition={{ duration: el.animation.duration, delay: el.animation.delay, ease: [0.22, 1, 0.36, 1] }}
+      style={{ ...elementBox(el), cursor: interactive ? "pointer" : undefined, opacity: undefined, ...(morphFrom ? { transformOrigin: "0 0" } : {}) }}
+      initial={
+        morphFrom
+          ? { x: morphFrom.x - el.x, y: morphFrom.y - el.y, scaleX: morphFrom.w / el.w, scaleY: morphFrom.h / el.h, rotate: morphFrom.rotation, opacity: el.opacity }
+          : enterFrom[el.animation.enter]
+      }
+      animate={morphFrom ? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: el.rotation, opacity: el.opacity } : { ...enterTo, opacity: el.opacity }}
+      transition={morphFrom ? { duration: 0.75, ease: [0.65, 0, 0.35, 1] } : { duration: el.animation.duration, delay: el.animation.delay, ease: [0.22, 1, 0.36, 1] }}
       whileHover={interactive ? { scale: 1.04 } : undefined}
       whileTap={interactive ? { scale: 0.97 } : undefined}
       {...handlers}
