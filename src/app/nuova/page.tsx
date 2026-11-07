@@ -1,3 +1,4 @@
+import { WritingButton } from "@/components/writing-button";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -8,7 +9,7 @@ import { addFreePhotos } from "@/lib/images/fill";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { SlideThumb } from "@/components/slide/element-view";
-import { Button, ButtonLink, Logo } from "@/components/ui";
+import { ButtonLink, Logo } from "@/components/ui";
 import { createFromDeckAction } from "./actions";
 
 /** Zib writes whole presentations with AI: creating one can take up to a minute or two. */
@@ -46,9 +47,7 @@ export default async function NewFromDeckPage({ searchParams }: PageProps<"/nuov
           {user ? (
             <form action={createFromDeckAction}>
               <input type="hidden" name="d" value={typeof d === "string" ? d : ""} />
-              <Button type="submit" className="bg-gradient-to-r from-[#7fffd4] to-[#9d8bff] px-6 py-3 text-base text-[#120d2e]">
-                Crea questa presentazione
-              </Button>
+              <WritingButton className="bg-gradient-to-r from-[#7fffd4] to-[#9d8bff] px-6 py-3 text-base text-[#120d2e]">Crea questa presentazione</WritingButton>
             </form>
           ) : (
             <>

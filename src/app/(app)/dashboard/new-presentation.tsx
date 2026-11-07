@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { buildTemplate, TEMPLATES, templateTheme, type TemplateId } from "@/lib/editor/templates";
 import { SlideThumb } from "@/components/slide/element-view";
 import { Button } from "@/components/ui";
+import { WritingButton } from "@/components/writing-button";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, type ThemeId } from "@/lib/editor/themes";
 import { buildDeck, planDeck } from "@/lib/editor/deck";
@@ -14,12 +14,7 @@ import { getTheme } from "@/lib/editor/themes";
 import { createFromTopicAction, createPresentationAction } from "./actions";
 
 function CreateButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Zib sta scrivendo…" : "Crea presentazione"}
-    </Button>
-  );
+  return <WritingButton>Crea presentazione</WritingButton>;
 }
 
 /** "Nuova presentazione": pick a template, then the editor opens on it. */
