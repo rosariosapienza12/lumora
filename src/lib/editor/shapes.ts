@@ -120,3 +120,15 @@ export const ILLUSTRATION_IDS = SVG_SHAPE_IDS.slice(SVG_SHAPE_IDS.indexOf("build
 export const GEOMETRIC_IDS = SHAPE_IDS.filter((s) => !(ILLUSTRATION_IDS as string[]).includes(s)) as ShapeId[];
 
 export const isSvgShape = (shape: string): shape is SvgShape => shape in SVG_SHAPES;
+
+/**
+ * What the "Forma" menu offers, like the shape menus of Keynote or Google
+ * Slides: geometry, arrows, callouts. The drawings above stay valid in old
+ * presentations but are no longer offered.
+ */
+export const SHAPE_MENU: { title: string; shapes: ShapeId[] }[] = [
+  { title: "Forme base", shapes: ["rect", "ellipse", "triangle", "right-triangle", "diamond", "pentagon", "hexagon", "octagon", "parallelogram", "trapezoid", "ring", "arc", "frame", "line"] },
+  { title: "Frecce", shapes: ["arrow", "double-arrow", "chevron"] },
+  { title: "Fumetti e simboli", shapes: ["bubble", "star", "cross", "ribbon", "wave"] },
+];
+export const MENU_SHAPES: ShapeId[] = SHAPE_MENU.flatMap((g) => g.shapes);

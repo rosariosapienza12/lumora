@@ -413,6 +413,16 @@ export function applyTheme(doc: PresentationDoc, toId: ThemeId): PresentationDoc
           return { ...e, fill: fill(e.fill) };
         case "image":
           return e.stroke ? { ...e, stroke: fill(e.stroke) } : e;
+        case "icon":
+          return { ...e, color: fill(e.color) };
+        case "chart":
+          return {
+            ...e,
+            color: ink(e.color),
+            ...(e.gridColor ? { gridColor: fill(e.gridColor) } : {}),
+            ...(e.font ? { font: font(e.font) } : {}),
+            data: { ...e.data, series: e.data.series.map((sr) => ({ ...sr, color: fill(sr.color) })) },
+          };
         case "object3d": {
           // Objects in the old theme's materials take the new theme's ones; hand-picked materials stay.
           const [a, b] = [style3D(from.id), style3D(to.id)];

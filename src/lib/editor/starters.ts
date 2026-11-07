@@ -95,6 +95,7 @@ export function buildStarter(id: StarterId, theme: ThemeId = DEFAULT_THEME): { t
         "Racconta un esempio concreto del problema: una persona, una situazione.",
         "Mostra come la soluzione cambia quell'esempio, con una sola promessa.",
         "Dì il numero e poi fai silenzio per due secondi: è il messaggio.",
+        "Mostra la curva e leggi solo la conclusione a destra: il grafico parla da solo.",
         "Spiega i passaggi in ordine, uno alla volta.",
         "Spiega le prossime tappe e cosa ti serve per arrivarci.",
         "Ringrazia e invita a scriverti: lascia questa pagina visibile durante le domande.",

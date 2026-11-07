@@ -6,6 +6,8 @@ import { MOTIFS } from "./motifs";
 import type { MotifId } from "./motif-ids";
 import { fitSize, nth, type Item, type PageContent } from "./content";
 import type { Form3D } from "../three/ids";
+import { pickIcon, type IconId } from "./icons";
+import { CHART_KINDS, type ChartContent } from "./chart";
 import { style3D } from "../three/styles";
 
 /**
@@ -111,6 +113,15 @@ export function drawWith(t: Theme) {
     tiltY: o.tiltY ?? 24,
     light: 0,
     ...(o.spin ? { spin: true } : {}),
+  });
+  /** A line icon from the icon library. */
+  const icon = (box: Box, id: IconId, color: string, o: { delay?: number; enter?: EnterAnimation } = {}): Element => ({
+    ...base(o.enter ?? "pop", o.delay),
+    ...box,
+    type: "icon",
+    icon: id,
+    color,
+    strokeWidth: 2,
   });
   /** Space for a photo, drawn as a card until a real photo takes its place. */
   const photoBox = (box: Box, o: { radius?: number; delay?: number; enter?: EnterAnimation; rotation?: number } = {}): Element =>
@@ -239,7 +250,7 @@ export function drawWith(t: Theme) {
     }
   };
 
-  return { p, kind, radius, tilt, text, shape, figure, object, photoBox, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector, card, mark };
+  return { p, kind, radius, tilt, text, shape, figure, icon, object, photoBox, button, hotspot, page, goto, popup, reveal, tooltip, heading, connector, card, mark };
 }
 
 /* ---------- Cover, section and closing: a full composition per art direction ---------- */
@@ -428,13 +439,44 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
   return d.page("Copertina", p.coverBg, els, "fade", true);
 }
 
+/**
+ * A chart in the theme's colours. `content` holds the numbers (written by Zib
+ * or by hand); without it, an example people replace with their own data.
+ */
+export function chartElement(t: Theme, colors?: { accent?: string; accent2?: string }, box = { x: 380, y: 200, w: 840, h: 500 }, content?: ChartContent): Element {
+  const p = t.palette;
+  const palette = [colors?.accent ?? p.accent, colors?.accent2 ?? p.accent2, p.muted];
+  const data = content ?? { kind: "colonne" as const, labels: ["2023", "2024", "2025", "2026"], series: [{ name: "Utenti", values: [12000, 28000, 41000, 65000] }] };
+  return {
+    id: newId(),
+    type: "chart",
+    ...box,
+    rotation: 0,
+    opacity: 1,
+    hidden: false,
+    locked: false,
+    animation: { enter: "fade", emphasis: "none", duration: 0.6, delay: 0.2 },
+    interaction: null,
+    color: p.text,
+    gridColor: p.card,
+    font: t.fonts.body,
+    data: {
+      kind: CHART_KINDS.includes(data.kind) ? data.kind : "colonne",
+      labels: data.labels.slice(0, 12),
+      series: data.series.slice(0, 3).map((sr, i) => ({ name: sr.name, values: sr.values.slice(0, 12), color: palette[i] })),
+      ...(data.unit ? { unit: data.unit } : {}),
+      showValues: true,
+    },
+  };
+}
+
 /* ---------- The layouts ---------- */
 
 export type LayoutId =
   | "copertina" | "sezione" | "chiusura" | "agenda"
   | "titolo-testo" | "due-colonne" | "tre-colonne" | "confronto" | "icone"
   | "immagine-testo" | "foto-piena" | "mosaico" | "citazione" | "elenco"
-  | "numeri" | "percentuale" | "linea-tempo" | "processo" | "piramide" | "mappa"
+  | "numeri" | "percentuale" | "grafico" | "linea-tempo" | "processo" | "piramide" | "mappa"
   | "esplora" | "schede"
   | "domanda" | "bivio"
   | "contatti";
@@ -455,7 +497,7 @@ export const LAYOUT_GROUPS: { feature: string; title: string; layouts: { id: Lay
   {
     feature: "animazioni",
     title: "Numeri e schemi",
-    layouts: [{ id: "numeri", name: "Numeri in evidenza" }, { id: "percentuale", name: "Percentuale nel cerchio" }, { id: "linea-tempo", name: "Linea del tempo" }, { id: "processo", name: "Processo a frecce" }, { id: "piramide", name: "Piramide" }, { id: "mappa", name: "Mappa concettuale" }],
+    layouts: [{ id: "numeri", name: "Numeri in evidenza" }, { id: "percentuale", name: "Percentuale nel cerchio" }, { id: "grafico", name: "Grafico e conclusione" }, { id: "linea-tempo", name: "Linea del tempo" }, { id: "processo", name: "Processo a frecce" }, { id: "piramide", name: "Piramide" }, { id: "mappa", name: "Mappa concettuale" }],
   },
   { feature: "interattivita", title: "Interattività", layouts: [{ id: "esplora", name: "Esplora con hotspot" }, { id: "schede", name: "Schede da scoprire" }] },
   { feature: "percorsi", title: "Percorsi e quiz", layouts: [{ id: "domanda", name: "Domanda a risposta" }, { id: "bivio", name: "Bivio" }] },
@@ -476,7 +518,7 @@ export const LAYOUT_FAMILIES: LayoutId[][] = [
   ["titolo-testo", "immagine-testo", "mosaico"],
   ["elenco", "tre-colonne", "icone", "processo", "linea-tempo", "piramide", "mappa", "schede", "agenda"],
   ["due-colonne", "confronto"],
-  ["numeri", "percentuale"],
+  ["numeri", "percentuale", "grafico"],
   ["domanda"],
   ["bivio"],
   ["chiusura", "contatti"],
@@ -494,8 +536,12 @@ export type LayoutOptions = {
 
 const ph = (i: number, what: string) => `${what} ${i + 1}`;
 const items = (c: PageContent, n: number, fallback: (i: number) => Item): Item[] => Array.from({ length: n }, (_, i) => nth(c.items, i, fallback(i)));
-/** How many items the content has, between min and max (placeholders fill up to min). */
-const count = (c: PageContent, min: number, max: number) => Math.max(min, Math.min(max, c.items?.length ?? 0));
+/**
+ * How many items to draw: the content's own (at least 2, at most max), or `min`
+ * placeholders when there is no content yet. Real content is never padded with
+ * fake points ("Oggi / Cosa è successo in questa tappa").
+ */
+const count = (c: PageContent, min: number, max: number) => (c.items?.length ? Math.max(2, Math.min(max, c.items.length)) : min);
 
 /**
  * Builds one page in the given layout and theme. `content` is the page's
@@ -512,6 +558,15 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
   const d = drawWith(t);
   const { p } = d;
   const icons = opts.icons?.length ? opts.icons : opts.motif ? MOTIFS[opts.motif].icons : DEFAULT_ICONS;
+  // Studio themes use line icons chosen from each point's words; earlier styles keep their drawings.
+  const used = new Set<IconId>();
+  const glyph = (box: Box, i: number, words: string, color: string, o: { delay?: number; enter?: EnterAnimation } = {}): Element => {
+    if (d.kind !== "studio") return d.figure(box, icons[i % icons.length], color, o);
+    const id = pickIcon(words, i, used);
+    used.add(id);
+    const pad = Math.round(box.w * 0.08);
+    return d.icon({ x: box.x + pad, y: box.y + pad, w: box.w - pad * 2, h: box.h - pad * 2 }, id, color, o);
+  };
   const H = (fallback: string) => c.heading || fallback;
 
   switch (id) {
@@ -584,7 +639,7 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
           return [
             ...d.card({ x, y: 260, w: 420, h: 550 }, i),
             d.shape({ x: x + 40, y: 300, w: 110, h: 110 }, i === 1 ? p.accent2 : p.accent, { ellipse: d.kind !== "brutale" && d.kind !== "editoriale", radius: 0, enter: "pop", delay: 0.25 + i * 0.15 }),
-            d.figure({ x: x + 67, y: 327, w: 56, h: 56 }, icons[i % icons.length], i === 1 ? p.title : p.onAccent, { enter: "pop", delay: 0.3 + i * 0.15 }),
+            glyph({ x: x + 67, y: 327, w: 56, h: 56 }, i, `${col.title} ${col.text ?? ""}`, i === 1 ? p.title : p.onAccent, { enter: "pop", delay: 0.3 + i * 0.15 }),
             d.text({ x: x + 40, y: 440, w: 340, h: 70 }, col.title, { size: 36, title: true, weight: "600", delay: 0.35 + i * 0.15 }),
             d.text({ x: x + 40, y: 520, w: 340, h: 260 }, col.text ?? "", { size: 27, delay: 0.4 + i * 0.15 }),
           ];
@@ -602,7 +657,7 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
           const delay = 0.15 + i * 0.1;
           return [
             d.shape({ x, y, w: 110, h: 110 }, d.kind === "neon" ? p.contentAlt : p.card, { radius: d.kind === "organico" ? 55 : Math.min(32, d.radius), enter: "pop", delay, ...(d.kind === "brutale" || d.kind === "gesso" || d.kind === "neon" ? { stroke: d.kind === "neon" ? p.accent : p.title, strokeWidth: d.kind === "brutale" ? 5 : 3 } : {}), rotation: d.tilt(i) * 3 }),
-            d.figure({ x: x + 25, y: y + 25, w: 60, h: 60 }, icons[i % icons.length], p.accent, { enter: "pop", delay: delay + 0.05 }),
+            glyph({ x: x + 25, y: y + 25, w: 60, h: 60 }, i, `${it.title} ${it.text ?? ""}`, p.accent, { enter: "pop", delay: delay + 0.05 }),
             d.text({ x: x + 140, y: y + 6, w: 290, h: 52 }, it.title, { size: 32, title: true, weight: "600", delay: delay + 0.1 }),
             d.text({ x: x + 140, y: y + 62, w: 290, h: 150 }, it.text ?? "", { size: 24, color: p.muted, delay: delay + 0.1 }),
           ];
@@ -678,6 +733,18 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
     }
 
     /* ---------- Numbers and diagrams ---------- */
+
+    case "grafico": {
+      const chart = chartElement(t, undefined, { x: 120, y: 250, w: 900, h: 540 }, c.chart);
+      return d.page("Grafico", p.contentBg, [
+        ...d.heading(H("Come sono cambiati i numeri")),
+        ...d.card({ x: 100, y: 230, w: 940, h: 580 }, 0),
+        chart,
+        d.shape({ x: 1100, y: 290, w: 6, h: 200 }, p.accent, { radius: 3, enter: "slide-up", delay: 0.3 }),
+        d.text({ x: 1130, y: 280, w: 350, h: 300 }, c.highlight || "Gli utenti sono quintuplicati in tre anni.", { size: 40, title: true, weight: "600", delay: 0.35, lineHeight: 1.2 }),
+        d.text({ x: 1130, y: 640, w: 350, h: 140 }, c.subtitle || "Fonte: scrivi da dove vengono i dati.", { size: 22, color: p.muted, delay: 0.45 }),
+      ], "fade");
+    }
 
     case "numeri": {
       const n = Math.max(2, Math.min(3, c.stats?.length ?? 3));
@@ -814,7 +881,7 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
         hiddenText.hidden = true;
         els.push(
           ...d.card({ x, y: 250, w: 420, h: 560 }, i),
-          d.figure({ x: x + 170, y: 560, w: 80, h: 80 }, icons[(i + 3) % icons.length], p.card, { delay: 0.3 + 0.15 * i }),
+          glyph({ x: x + 170, y: 560, w: 80, h: 80 }, i + 3, `${it.title} ${it.text ?? ""}`, d.kind === "studio" ? p.muted : p.card, { delay: 0.3 + 0.15 * i }),
           d.button({ x: x + 40, y: 290, w: 340, h: 110 }, it.title, d.reveal(hiddenText), { fill: i === 1 ? p.accent2 : p.accent, color: i === 1 ? p.title : p.onAccent, delay: 0.3 + 0.15 * i }),
           hiddenText,
         );

@@ -5,6 +5,8 @@ import { fillRule, isSvgShape, SVG_SHAPES } from "@/lib/editor/shapes";
 import type { Relief } from "@/lib/three/ids";
 import { FitStage } from "./fit-stage";
 import { Object3DView } from "./object3d";
+import { ChartView } from "./chart-view";
+import { ICONS } from "@/lib/editor/icons";
 
 /** A flat colour, or a linear gradient when a second colour is set. */
 export function paint(c1: string, c2?: string, angle = 135) {
@@ -77,6 +79,14 @@ export function ElementBody({ el, live = false }: { el: Element; live?: boolean 
   switch (el.type) {
     case "object3d":
       return <Object3DView el={el} live={live} />;
+    case "icon":
+      return (
+        <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke={el.color} strokeWidth={el.strokeWidth ?? 2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block", overflow: "visible" }} aria-hidden>
+          <path d={ICONS[el.icon].d} />
+        </svg>
+      );
+    case "chart":
+      return <ChartView el={el} />;
     case "text":
       return (
         <div
