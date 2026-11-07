@@ -37,7 +37,7 @@ const BASE = {
 
 /** The provider in use: the one named in AI_PROVIDER, else the first free one with a key, else Anthropic. */
 export function provider(): Provider | null {
-  const keys = { gemini: env.GEMINI_API_KEY, groq: env.GROQ_API_KEY, openrouter: env.OPENROUTER_API_KEY, anthropic: env.ANTHROPIC_API_KEY };
+  const keys = { gemini: env.GEMINI_API_KEY ?? env.GOOGLE_API_KEY ?? env.GOOGLE_GENERATIVE_AI_API_KEY, groq: env.GROQ_API_KEY, openrouter: env.OPENROUTER_API_KEY, anthropic: env.ANTHROPIC_API_KEY };
   const order = env.AI_PROVIDER ? [env.AI_PROVIDER] : (["gemini", "groq", "openrouter", "anthropic"] as const);
   for (const name of order) {
     const key = keys[name];

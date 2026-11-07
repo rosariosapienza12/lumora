@@ -69,17 +69,29 @@ function drawFallback(canvas: HTMLCanvasElement, color: string) {
 export function Object3DView({ el, live = false }: { el: Object3DElement; live?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  // Drawn only once it comes on screen: a dashboard full of thumbnails does not render them all at once.
+  const [seen, setSeen] = useState(false);
 
   // Follow the size on screen (the stage scales with the window).
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        setSeen(true);
+        io.disconnect();
+      }
+    }, { rootMargin: "200px" });
+    io.observe(canvas);
     const ro = new ResizeObserver(([entry]) => {
       const next = pixelSize(entry.contentRect);
       setSize((s) => (s && Math.abs(s.w - next.w) < 8 && Math.abs(s.h - next.h) < 8 ? s : next));
     });
     ro.observe(canvas);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      io.disconnect();
+    };
   }, []);
 
   const animated = live && (el.spin || el.form === "blob");
@@ -87,7 +99,7 @@ export function Object3DView({ el, live = false }: { el: Object3DElement; live?:
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || !size) return;
+    if (!canvas || !size || !seen) return;
     canvas.width = size.w;
     canvas.height = size.h;
     if (!has3D()) {
@@ -112,7 +124,7 @@ export function Object3DView({ el, live = false }: { el: Object3DElement; live?:
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` captures every drawing parameter of `el`
-  }, [key, size, animated]);
+  }, [key, size, animated, seen]);
 
   return <canvas ref={ref} aria-label={el.alt || undefined} role={el.alt ? "img" : undefined} aria-hidden={el.alt ? undefined : true} style={{ width: "100%", height: "100%", display: "block" }} />;
 }

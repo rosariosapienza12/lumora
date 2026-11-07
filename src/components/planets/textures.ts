@@ -6,6 +6,8 @@
  * world always looks the same.
  */
 
+import { readTexture, writeTexture } from "./texture-cache";
+
 export type PlanetKind = "ember" | "aurora" | "ocean" | "crystal" | "jungle" | "gold" | "rose" | "aegis";
 
 
@@ -385,14 +387,28 @@ export function loadPlanetTexture(kind: PlanetKind, width: number): Promise<Plan
   const key = `${kind}:${width}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const ws = workers();
-  const job = ws
-    ? new Promise<PlanetTexture>((resolve) => {
-        const id = ++seq;
-        pending.set(id, { resolve });
-        ws[nextWorker++ % ws.length].postMessage({ id, kind, width });
-      })
-    : new Promise<PlanetTexture>((resolve) => setTimeout(() => resolve(generateTexture(kind, width)), 0));
+  const generate = () => {
+    const ws = workers();
+    return ws
+      ? new Promise<PlanetTexture>((resolve) => {
+          const id = ++seq;
+          pending.set(id, { resolve });
+          ws[nextWorker++ % ws.length].postMessage({ id, kind, width });
+        })
+      : new Promise<PlanetTexture>((resolve) => setTimeout(() => resolve(generateTexture(kind, width)), 0));
+  };
+  // Kept in the browser after the first visit (texture-cache.ts): no recomputing on every visit.
+  const job =
+    typeof window === "undefined"
+      ? generate()
+      : readTexture(kind, width).then(
+          (hit) =>
+            hit ??
+            generate().then((t) => {
+              void writeTexture(kind, t);
+              return t;
+            }),
+        );
   cache.set(key, job);
   return job;
 }
