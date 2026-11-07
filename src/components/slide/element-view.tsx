@@ -6,6 +6,7 @@ import type { Relief } from "@/lib/three/ids";
 import { FitStage } from "./fit-stage";
 import { Object3DView } from "./object3d";
 import { ChartView } from "./chart-view";
+import { PollView } from "./poll-view";
 import { ICONS } from "@/lib/editor/icons";
 
 /** A flat colour, or a linear gradient when a second colour is set. */
@@ -87,6 +88,8 @@ export function ElementBody({ el, live = false }: { el: Element; live?: boolean 
       );
     case "chart":
       return <ChartView el={el} />;
+    case "poll":
+      return <PollView el={el} live={live} />;
     case "text":
       return (
         <div

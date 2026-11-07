@@ -140,5 +140,24 @@ model Presentation {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
+  pollVotes         PollVote[]
+
   @@index([ownerId, deletedAt, updatedAt])
+}
+
+// One vote per browser and poll in a live audience poll (element "poll" of a published presentation).
+model PollVote {
+  id             String       @id @default(cuid())
+  presentationId String
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  // Id of the poll element in the document.
+  elementId      String
+  option         Int
+  // SHA-256 of a random per-browser cookie: no personal data.
+  voter          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([presentationId, elementId, voter])
+  @@index([presentationId, elementId])
 }

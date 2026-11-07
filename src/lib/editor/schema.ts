@@ -278,7 +278,20 @@ const chartEl = z.object({
   font: z.enum(FONTS).optional(),
 });
 
-export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl, object3dEl, iconEl, chartEl]);
+/** A live audience poll: in the presentation people vote from their phone (QR code) and the bars move. */
+const pollEl = z.object({
+  ...base,
+  type: z.literal("poll"),
+  question: plainText(160),
+  options: z.array(plainText(60)).min(2).max(6),
+  /** Bars and accents. */
+  fill: color,
+  /** Question and labels. */
+  color,
+  font: z.enum(FONTS).optional(),
+});
+
+export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl, object3dEl, iconEl, chartEl, pollEl]);
 
 export const page = z.object({
   id,

@@ -116,6 +116,19 @@ function createElement(kind: ElementType, src?: string, alt = "", shape: ShapeId
         animation: { enter: "pop", emphasis: "none", duration: 0.5, delay: 0 },
         interaction: { trigger: "click", action: { kind: "popup", title: "Lo sapevi?", body: "Scrivi qui il contenuto che appare al clic." } },
       };
+    case "poll":
+      return {
+        ...baseEl(),
+        type: "poll",
+        x: 120,
+        y: 150,
+        w: 1360,
+        h: 640,
+        question: "Che cosa ne pensate?",
+        options: ["Molto d'accordo", "D'accordo", "Non saprei", "Per niente"],
+        fill: "#5b3df5",
+        color: "#1d1a3a",
+      };
     case "icon":
       return { ...baseEl(), type: "icon", x: cx - 80, y: cy - 80, w: 160, h: 160, icon: "lightbulb", color: "#5b3df5", strokeWidth: 2 };
     case "chart":
@@ -217,6 +230,20 @@ export function recompose(page: Page, content: PageContent, doc: PresentationDoc
   return out;
 }
 
+/** Is a hex colour dark? */
+const isDark = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255) < 128;
+};
+
+/** New polls and charts write their words in a colour that reads on the page they land on. */
+function readable(e: Element, background: string): Element {
+  if ((e.type === "poll" || e.type === "chart") && isDark(background) === isDark(e.color)) {
+    return { ...e, color: isDark(background) ? "#ffffff" : "#1d1a3a", ...(e.type === "chart" ? { gridColor: isDark(background) ? "#4a4570" : "#d9d3ff" } : {}) } as Element;
+  }
+  return e;
+}
+
 /** Removes references to elements/pages that no longer exist. */
 function pruneRefs(doc: PresentationDoc): PresentationDoc {
   const pageIds = new Set(doc.pages.map((p) => p.id));
@@ -294,7 +321,7 @@ export function reducer(state: EditorState, action: Action): EditorState {
     case "update-page":
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, ...action.patch })));
     case "add-element": {
-      const el = { ...createElement(action.kind, action.src, action.alt, action.shape), extra: true } as Element;
+      const el = readable({ ...createElement(action.kind, action.src, action.alt, action.shape), extra: true } as Element, page.background);
       // Elements added one after another are cascaded instead of stacking on the same spot.
       for (let i = 0; i < 12 && page.elements.some((e) => e.x === el.x && e.y === el.y); i++) {
         el.x += 40;
@@ -304,7 +331,7 @@ export function reducer(state: EditorState, action: Action): EditorState {
     }
     case "add-elements": {
       if (!action.elements.length) return state;
-      const fresh = action.elements.map((e) => ({ ...e, id: newId(), extra: true }) as Element);
+      const fresh = action.elements.map((e) => readable({ ...e, id: newId(), extra: true } as Element, page.background));
       return commit(state, mapPage(state.doc, page.id, (p) => ({ ...p, elements: [...p.elements, ...fresh] })), { selectedId: fresh[0].id });
     }
     case "update-element":

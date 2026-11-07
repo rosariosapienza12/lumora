@@ -4,7 +4,7 @@ import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
 import { isSvgShape, MENU_SHAPES, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
 import { RELIEF_NAMES, RELIEFS } from "@/lib/three/ids";
 import { Look3DControls, Object3DControls } from "./object3d-panel";
-import { ChartControls, IconControls } from "./chart-panel";
+import { ChartControls, IconControls, PollControls } from "./chart-panel";
 import { ContentPanel } from "./content-panel";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
@@ -300,6 +300,7 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
         {el.type === "object3d" && <Object3DControls el={el} set={set} />}
         {el.type === "icon" && <IconControls el={el} set={set} />}
         {el.type === "chart" && <ChartControls el={el} set={set} />}
+        {el.type === "poll" && <PollControls el={el} set={set} />}
         {el.type === "shape" && !el.photoSlot && isSvgShape(el.shape) && (
           <Row label="Rilievo 3D">
             <div className="flex flex-wrap gap-1.5">
