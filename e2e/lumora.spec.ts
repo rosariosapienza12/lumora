@@ -67,3 +67,10 @@ test("free photos from Wikimedia Commons, credited on a last page", async ({ pag
   await first.click();
   await expect(page.getByRole("button", { name: /Crediti foto/ })).toBeVisible();
 });
+
+test("Zib's preview with photos opens (the credits page is not in the outline)", async ({ page }) => {
+  const outline = "Colosseo|aurora|foto-piena=Colosseo;immagine-testo=Che cos'è;chiusura=Grazie!|foto=Colosseo";
+  const res = await page.goto(`/nuova?d=${encodeURIComponent(outline)}`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Colosseo" })).toBeVisible();
+});

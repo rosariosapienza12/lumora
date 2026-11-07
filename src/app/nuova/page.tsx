@@ -66,7 +66,7 @@ export default async function NewFromDeckPage({ searchParams }: PageProps<"/nuov
             <li key={p.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               <SlideThumb page={p} />
               <p className="truncate px-3 py-2 text-sm text-white/80">
-                {i + 1}. {spec.pages[i].heading || p.name}
+                {i + 1}. {spec.pages[i]?.heading || p.name}
               </p>
             </li>
           ))}
