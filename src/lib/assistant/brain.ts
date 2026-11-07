@@ -282,7 +282,7 @@ function topicOf(text: string): string | null {
 function deckAnswer(spec: DeckSpec, kindName: string) {
   const theme = getTheme(spec.theme);
   const lines = spec.pages.map((p) => `• ${LAYOUT_NAMES[p.layout]}: ${p.heading}`);
-  const otherTheme = THEMES.find((t) => t.id !== spec.theme && t.id !== "notte")?.name ?? "Minimal";
+  const otherTheme = THEMES.find((t) => t.id !== spec.theme && t.id !== "aurora")?.name ?? "Minimal";
   const topic = spec.motif ? ` Argomento ${MOTIFS[spec.motif].name.toLowerCase()}: ai margini delle pagine metto le sue illustrazioni.` : "";
   const photos = spec.photos ? ` Gli spazi per le foto li riempio con foto libere di Wikimedia Commons su "${spec.photos}", con autore e licenza.` : "";
   return [

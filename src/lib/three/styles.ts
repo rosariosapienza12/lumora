@@ -9,7 +9,7 @@ import type { Element, Page, PresentationDoc } from "../editor/schema";
  */
 export type Style3D = { material: Material3D; second: Material3D; forms: [Form3D, Form3D, Form3D]; relief: Exclude<Relief, "none"> };
 
-export const THEME_3D: Record<ThemeId, Style3D> = {
+export const THEME_3D: Partial<Record<ThemeId, Style3D>> = {
   notte: { material: "vetro", second: "iridescente", forms: ["sfera", "anello", "gemma"], relief: "smalto" },
   minimal: { material: "gesso", second: "marmo", forms: ["cubo", "sfera", "cono"], relief: "inciso" },
   aziendale: { material: "satinato", second: "cromo", forms: ["cubo", "cilindro", "torsione"], relief: "smalto" },
@@ -31,7 +31,9 @@ export const THEME_3D: Record<ThemeId, Style3D> = {
   benessere: { material: "argilla", second: "vetro", forms: ["blob", "goccia", "sfera"], relief: "gonfio" },
 };
 
-export const style3D = (id: string | undefined): Style3D => THEME_3D[(id ?? "notte") as ThemeId] ?? THEME_3D.notte;
+/** Studio themes: sober materials, objects only when someone adds them. */
+const STUDIO_3D: Style3D = { material: "satinato", second: "vetro", forms: ["sfera", "cubo", "cilindro"], relief: "inciso" };
+export const style3D = (id: string | undefined): Style3D => THEME_3D[(id ?? "notte") as ThemeId] ?? STUDIO_3D;
 
 /** The materials and forms a presentation's objects are made of: chosen by Zib or by hand, else the theme's. */
 export type Look3D = Pick<Style3D, "material" | "second" | "forms">;

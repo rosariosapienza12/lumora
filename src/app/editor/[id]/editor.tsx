@@ -14,7 +14,7 @@ import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { ShapeMenu } from "./shape-menu";
 import { Object3DMenu } from "./object3d-panel";
-import { getTheme } from "@/lib/editor/themes";
+import { getTheme, needsRestyle } from "@/lib/editor/themes";
 import { style3D } from "@/lib/three/styles";
 import { PhotoSearch } from "./photo-search";
 import { currentPage, initState, reducer } from "./store";
@@ -245,6 +245,15 @@ export function Editor(props: {
 
         {/* Canvas */}
         <section className="order-1 flex min-w-0 flex-col bg-mist lg:order-none lg:flex-1">
+          {needsRestyle(state.doc) && (
+            <div role="note" className="flex flex-wrap items-center justify-center gap-3 border-b border-line bg-violet/10 px-3 py-2 text-sm">
+              <span>Questa presentazione usa lo stile precedente di Lumora.</span>
+              <button onClick={() => dispatch({ type: "restyle" })} className="rounded-full bg-violet px-3 py-1 text-sm font-semibold text-white hover:bg-violet/90">
+                Riassembla con il nuovo stile
+              </button>
+              <span className="text-xs text-ink-soft">I testi cambiati a mano restano; puoi sempre annullare.</span>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-1.5 border-b border-line bg-paper/60 px-3 py-2" role="toolbar" aria-label="Aggiungi elementi">
             {ADDABLE.map((a) =>
               a.kind === "shape" ? (

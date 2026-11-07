@@ -5,9 +5,8 @@ import { env } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { pageContentSchema } from "@/lib/editor/content";
 import { buildLayout, isLayoutId, LAYOUT_IDS, type LayoutId } from "@/lib/editor/layouts";
-import { decoratePage } from "@/lib/editor/motifs";
 import { ILLUSTRATION_IDS, isSvgShape, type SvgShape } from "@/lib/editor/shapes";
-import { getTheme, isThemeId, STYLE_NAMES, THEMES, type ThemeId } from "@/lib/editor/themes";
+import { getTheme, isThemeId, modernTheme, THEMES, type ThemeId } from "@/lib/editor/themes";
 import { documentSchema, type PresentationDoc } from "@/lib/editor/schema";
 import type { DeckSpec } from "@/lib/editor/deck";
 import { FORMS_3D, isForm3D, isMaterial3D, MATERIALS_3D, type Form3D } from "@/lib/three/ids";
@@ -87,7 +86,7 @@ Contenuti:
 - Le domande dei quiz hanno una risposta giusta verificabile.
 
 Aspetto, scelto per l'argomento:
-- theme: uno di ${THEMES.map((t) => `${t.id} (${t.name}, stile ${STYLE_NAMES[t.kind]}: ${t.mood})`).join("; ")}.
+- theme: uno di ${THEMES.map((t) => `${t.id} (${t.name}: ${t.mood})`).join("; ")}.
 - decor: 3-4 disegni per i margini e le icone, scelti tra: ${ILLUSTRATION_IDS.join(", ")}, leaf, star, heart, drop, moon, cloud, wave, sun.
 - photoQuery: 1-4 parole concrete per cercare foto su Wikimedia Commons (solo se richieste).
 - look3d: gli oggetti 3D realistici di copertine, sezioni e chiusura. material e second tra: ${MATERIALS_3D.join(", ")}; forms: 3 forme tra ${FORMS_3D.join(", ")}. Scegli in modo evocativo per l'argomento (per esempio l'acqua: vetro e gocce; la finanza: metallo e monete; la chimica: vetro e molecola; l'arte classica: marmo e colonna ritorta).
@@ -145,14 +144,14 @@ export async function generateDeck(request: { topic: string; outline?: DeckSpec;
 
 /** Builds the document from Zib's answer, dropping unknown layouts and drawings. Null if nothing valid remains. */
 export function docFromGenerated(g: GeneratedDeck, forcedTheme?: ThemeId): { title: string; doc: PresentationDoc; photoQuery?: string } | null {
-  const themeId: ThemeId = forcedTheme ?? (isThemeId(g.theme) ? g.theme : "notte");
+  const themeId: ThemeId = forcedTheme ?? modernTheme(isThemeId(g.theme) ? g.theme : "aurora");
   const theme = getTheme(themeId);
   const decor = g.decor.filter((s): s is SvgShape => isSvgShape(s)).slice(0, 4);
   const pages = g.pages
     .filter((p) => isLayoutId(p.layout))
-    .map((p, i) => {
-      const built = buildLayout(p.layout as LayoutId, theme, p.content, { icons: decor });
-      const page = decor.length ? decoratePage(built, decor, theme, i) : built;
+    .map((p) => {
+      // Clean pages: the drawings Zib picks are used as icons, not scattered in the margins.
+      const page = buildLayout(p.layout as LayoutId, theme, p.content, { icons: decor });
       return p.notes ? { ...page, notes: p.notes } : page;
     });
   if (pages.length < 3) return null;

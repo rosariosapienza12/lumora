@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { initState, reducer, currentPage } from "./store";
+import { initState, reducer, currentPage, restyle } from "./store";
+import { applyMotif } from "@/lib/editor/motifs";
+import { buildTemplate } from "@/lib/editor/templates";
 import { buildLayout } from "@/lib/editor/layouts";
 import { documentSchema, type PresentationDoc } from "@/lib/editor/schema";
-import { getTheme } from "@/lib/editor/themes";
+import { getTheme, needsRestyle } from "@/lib/editor/themes";
 
 const words = { heading: "Il ciclo dell'acqua", items: [{ title: "Evaporazione", text: "Il sole scalda il mare." }, { title: "Condensazione", text: "Il vapore forma le nuvole." }, { title: "Precipitazione", text: "Piove." }] };
 const docWith = (): PresentationDoc => ({ version: 1, pages: [buildLayout("processo", getTheme("oceano"), words)], settings: { autoAdvance: 0, theme: "oceano" } });
@@ -45,5 +47,22 @@ describe("editor actions", () => {
     const count = (d: PresentationDoc) => d.pages[0].elements.filter((e) => e.decor).length;
     expect(count(none.doc)).toBe(0);
     expect(count(many.doc)).toBeGreaterThanOrEqual(count(withTopic.doc));
+  });
+});
+
+describe("restyle", () => {
+  it("re-assembles an old presentation in the clean style without losing pages, links or hand edits", () => {
+    const base = applyMotif(buildTemplate("lezione", "Prova", "notte"), "spazio");
+    const edited = { ...base, pages: base.pages.map((p, i) => (i === 1 ? { ...p, elements: p.elements.map((e) => (e.type === "text" && e.weight === "800" ? { ...e, text: "Il mio titolo scritto a mano" } : e)) } : p)) };
+    expect(needsRestyle(edited)).toBe(true);
+    const next = restyle(edited);
+    expect(needsRestyle(next)).toBe(false);
+    expect(next.settings?.theme).toBe("aurora");
+    expect(next.pages).toHaveLength(edited.pages.length);
+    expect(next.pages.flatMap((p) => p.elements).some((e) => e.decor)).toBe(false);
+    expect(next.pages[1].elements.some((e) => e.type === "text" && e.text === "Il mio titolo scritto a mano")).toBe(true);
+    const links = (d: typeof next) => d.pages.flatMap((p) => p.elements).filter((e) => e.type === "button" && e.interaction?.action.kind === "goto").length;
+    expect(links(next)).toBe(links(edited));
+    expect(documentSchema.safeParse(next).success).toBe(true);
   });
 });
