@@ -63,3 +63,9 @@ describe("backup models", () => {
     expect(JSON.parse(String(fetch.mock.calls[1][1]?.body)).model).toBe("gemini-2.5-flash");
   });
 });
+
+describe("key formats", () => {
+  it("accepts the newer Google key format with dots", () => {
+    expect(/^[A-Za-z0-9._-]{20,200}$/.test("AQ.Ab8RN6Iexample-key_with.dots1234567890abcdef")).toBe(true);
+  });
+});

@@ -196,7 +196,10 @@ export function keyDiagnosis(): string {
     if (raw === undefined) return [];
     const v = raw.trim().replace(/^["']|["']$/g, "");
     if (!v) return [`${n}=empty`];
-    return [`${n}=${/^[A-Za-z0-9_-]{20,}$/.test(v) ? "ok" : `invalid(len ${v.length})`}`];
+    if (/^[A-Za-z0-9._-]{20,200}$/.test(v)) return [`${n}=ok`];
+    // Only the kinds of unexpected characters, never the characters themselves.
+    const kinds = [/\s/.test(v) && "spaces", /[^ -~]/.test(v) && "non-ascii", /[^\sA-Za-z0-9._-]/.test(v) && "symbols"].filter(Boolean).join("+");
+    return [`${n}=invalid(len ${v.length}${kinds ? `, ${kinds}` : ""})`];
   });
   // Variables with similar names (a typo, spaces or a different case), names only.
   const similar = Object.keys(process.env).filter((k) => /gemini|google.*key|api.?key/i.test(k) && !names.includes(k)).map((k) => `other:${k.replace(/[^\w-]/g, "?").slice(0, 40)}`);
