@@ -39,6 +39,8 @@ export const pageVariants: Record<Transition, Variants> = {
     exit: (d: number) => ({ y: `${d * -100}%` }),
   },
   zoom: { enter: { opacity: 0, scale: 1.15 }, center: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.9 } },
+  // Morph: the page itself does not move; matching elements glide (see effects.ts and the player).
+  morph: { enter: { opacity: 1 }, center: { opacity: 1 }, exit: { opacity: 0, transition: { duration: 0.18 } } },
   flip: {
     enter: (d: number) => ({ rotateY: d * 90, opacity: 0 }),
     center: { rotateY: 0, opacity: 1 },

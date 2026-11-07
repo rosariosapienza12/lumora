@@ -4,7 +4,7 @@ import type { CoverStyle, StyleKind, Theme } from "./themes";
 import type { ShapeId, SvgShape } from "./shapes";
 import { MOTIFS } from "./motifs";
 import type { MotifId } from "./motif-ids";
-import { fitSize, nth, type Item, type PageContent } from "./content";
+import { contentFields, fitSize, nth, type Item, type PageContent } from "./content";
 import type { Form3D } from "../three/ids";
 import { pickIcon, type IconId } from "./icons";
 import { CHART_KINDS, type ChartContent } from "./chart";
@@ -535,7 +535,13 @@ export type LayoutOptions = {
 };
 
 const ph = (i: number, what: string) => `${what} ${i + 1}`;
-const items = (c: PageContent, n: number, fallback: (i: number) => Item): Item[] => Array.from({ length: n }, (_, i) => nth(c.items, i, fallback(i)));
+/** The example words a layout draws when the content has none (filled in while a page is drawn). */
+let examples: { heading?: string; items?: Item[] } | null = null;
+const items = (c: PageContent, n: number, fallback: (i: number) => Item): Item[] => {
+  const list = Array.from({ length: n }, (_, i) => nth(c.items, i, fallback(i)));
+  if (examples && !c.items?.length) examples.items = list;
+  return list;
+};
 /**
  * How many items to draw: the content's own (at least 2, at most max), or `min`
  * placeholders when there is no content yet. Real content is never padded with
@@ -549,9 +555,39 @@ const count = (c: PageContent, min: number, max: number) => (c.items?.length ? M
  * says what to write.
  */
 export function buildLayout(id: LayoutId, t: Theme, content?: PageContent | string, opts: LayoutOptions = {}): Page {
-  const c: PageContent = typeof content === "string" ? { heading: content } : (content ?? {});
-  const page = drawLayout(id, t, c, opts);
-  return { ...page, source: { layout: id, content: c } };
+  const c: PageContent = typeof content === "string" ? { heading: content } : { ...(content ?? {}) };
+  // The example words become part of the page's content, so the content panel shows exactly
+  // what the page shows and edits to examples are remembered too.
+  examples = {};
+  let page: Page;
+  try {
+    page = drawLayout(id, t, c, opts);
+  } finally {
+    const found = examples;
+    examples = null;
+    Object.assign(c, { ...(found?.heading && !c.heading ? { heading: found.heading } : {}), ...(found?.items && !c.items?.length ? { items: found.items } : {}) });
+  }
+  return { ...bindTexts(page, c), source: { layout: id, content: c } };
+}
+
+/**
+ * Marks which content field each text shows (an exact match, used once), so
+ * an edit on the page updates the page's words and the page can re-compose
+ * itself without losing it. Placeholders stay unbound.
+ */
+function bindTexts(page: Page, c: PageContent): Page {
+  const fields = contentFields(c);
+  const taken = new Set<string>();
+  return {
+    ...page,
+    elements: page.elements.map((e) => {
+      if (e.type !== "text") return e;
+      const hit = fields.find(([path, text]) => !taken.has(path) && text === e.text);
+      if (!hit) return e;
+      taken.add(hit[0]);
+      return { ...e, bind: hit[0] };
+    }),
+  };
 }
 
 function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions): Page {
@@ -567,7 +603,10 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
     const pad = Math.round(box.w * 0.08);
     return d.icon({ x: box.x + pad, y: box.y + pad, w: box.w - pad * 2, h: box.h - pad * 2 }, id, color, o);
   };
-  const H = (fallback: string) => c.heading || fallback;
+  const H = (fallback: string) => {
+    if (examples && !c.heading) examples.heading = fallback;
+    return c.heading || fallback;
+  };
 
   switch (id) {
     /* ---------- Structure ---------- */
@@ -944,3 +983,41 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
 export function relatedLayouts(id: string): LayoutId[] {
   return LAYOUT_FAMILIES.find((f) => f.includes(id as LayoutId)) ?? [];
 }
+
+/** What the "Contenuto della pagina" panel offers for each layout (the fields the layout reads). */
+export type LayoutFields = {
+  text: ("heading" | "subtitle" | "body" | "highlight")[];
+  items?: { min: number; max: number; withText: boolean; label: string };
+  stats?: { min: number; max: number };
+  quote?: boolean;
+  question?: boolean;
+};
+const H_: LayoutFields["text"] = ["heading"];
+export const LAYOUT_FIELDS: Record<LayoutId, LayoutFields> = {
+  copertina: { text: ["heading", "subtitle"] },
+  "foto-piena": { text: ["heading", "subtitle"] },
+  sezione: { text: ["heading", "subtitle"] },
+  chiusura: { text: ["heading", "subtitle"] },
+  agenda: { text: H_, items: { min: 2, max: 6, withText: false, label: "Voci dell'indice" } },
+  "titolo-testo": { text: ["heading", "body", "highlight"] },
+  "due-colonne": { text: H_, items: { min: 2, max: 2, withText: true, label: "Colonne" } },
+  confronto: { text: H_, items: { min: 2, max: 2, withText: true, label: "I due lati" } },
+  "tre-colonne": { text: H_, items: { min: 3, max: 3, withText: true, label: "Colonne" } },
+  icone: { text: H_, items: { min: 2, max: 6, withText: true, label: "Punti" } },
+  "immagine-testo": { text: ["heading", "body"] },
+  mosaico: { text: ["heading", "body"] },
+  citazione: { text: [], quote: true },
+  elenco: { text: H_, items: { min: 2, max: 6, withText: true, label: "Punti" } },
+  numeri: { text: H_, stats: { min: 1, max: 3 } },
+  percentuale: { text: ["heading", "highlight"], stats: { min: 1, max: 1 } },
+  grafico: { text: ["heading", "highlight", "subtitle"] },
+  "linea-tempo": { text: H_, items: { min: 2, max: 5, withText: true, label: "Tappe" } },
+  processo: { text: H_, items: { min: 2, max: 5, withText: true, label: "Passaggi" } },
+  piramide: { text: H_, items: { min: 3, max: 3, withText: true, label: "Livelli, dalla cima alla base" } },
+  mappa: { text: ["heading", "highlight"], items: { min: 2, max: 6, withText: false, label: "Rami della mappa" } },
+  esplora: { text: ["heading", "body"], items: { min: 2, max: 2, withText: true, label: "Punti da toccare" } },
+  schede: { text: H_, items: { min: 2, max: 3, withText: true, label: "Schede" } },
+  domanda: { text: [], question: true },
+  bivio: { text: ["heading", "subtitle"], items: { min: 2, max: 2, withText: false, label: "Le due strade" } },
+  contatti: { text: ["heading", "subtitle"], items: { min: 1, max: 3, withText: false, label: "Contatti" } },
+};

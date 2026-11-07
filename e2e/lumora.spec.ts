@@ -34,7 +34,7 @@ test("new presentation from a topic, then re-layout, background texture and hand
   await signIn(page);
   await page.getByRole("button", { name: "Nuova presentazione" }).click();
   await page.getByLabel("Di cosa parla la presentazione?").fill("il ciclo dell'acqua");
-  await expect(page.getByText(/pagine nel tema Oceano/)).toBeVisible();
+  await expect(page.getByText(/pagine nel tema Marea/)).toBeVisible();
   await page.getByRole("button", { name: "Crea presentazione" }).click();
   await expect(page).toHaveURL(/\/editor\//, { timeout: 60_000 });
 

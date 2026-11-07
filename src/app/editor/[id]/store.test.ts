@@ -66,3 +66,40 @@ describe("restyle", () => {
     expect(documentSchema.safeParse(next).success).toBe(true);
   });
 });
+
+describe("smart layouts", () => {
+  const list = { heading: "Perché riciclare", items: [{ title: "Meno rifiuti", text: "Le discariche si riempiono più piano." }, { title: "Meno energia", text: "Rifondere costa meno che estrarre." }] };
+  const start = (): PresentationDoc => ({ version: 1, pages: [buildLayout("elenco", getTheme("aurora"), list)], settings: { autoAdvance: 0, theme: "aurora" } });
+  const textsOf = (d: PresentationDoc) => d.pages[0].elements.flatMap((e) => (e.type === "text" ? [e.text] : []));
+
+  it("texts know which field they show", () => {
+    const binds = start().pages[0].elements.flatMap((e) => (e.type === "text" && e.bind ? [e.bind] : []));
+    expect(binds).toEqual(expect.arrayContaining(["heading", "items.0.title", "items.1.text"]));
+  });
+
+  it("an edit on the page updates the page's words, so re-composing keeps it", () => {
+    let s = initState(start());
+    const title = s.doc.pages[0].elements.find((e) => e.type === "text" && e.bind === "items.0.title")!;
+    s = reducer(s, { type: "update-element", id: title.id, patch: { text: "Meno plastica in mare" } });
+    expect(s.doc.pages[0].source?.content.items?.[0].title).toBe("Meno plastica in mare");
+    s = reducer(s, { type: "page-content", content: { ...s.doc.pages[0].source!.content, items: [...s.doc.pages[0].source!.content.items!, { title: "Nuovi posti di lavoro", text: "Il riciclo è un'industria." }] } });
+    expect(textsOf(s.doc)).toEqual(expect.arrayContaining(["Meno plastica in mare", "Nuovi posti di lavoro"]));
+  });
+
+  it("adding a point re-composes the page and keeps what was added by hand, id and notes", () => {
+    let s = initState(start());
+    const id = s.doc.pages[0].id;
+    s = reducer(s, { type: "update-page", patch: { notes: "Ricorda l'esempio di Milano." } });
+    s = reducer(s, { type: "add-element", kind: "text" });
+    const before = s.doc.pages[0].elements.length;
+    s = reducer(s, { type: "page-content", content: { ...list, items: [...list.items, { title: "Terzo", text: "Un altro motivo." }] } });
+    const page = s.doc.pages[0];
+    expect(page.id).toBe(id);
+    expect(page.notes).toBe("Ricorda l'esempio di Milano.");
+    expect(page.elements.some((e) => e.type === "text" && e.text === "Scrivi qui il tuo testo" && e.extra)).toBe(true);
+    expect(page.elements.length).toBeGreaterThan(before);
+    expect(documentSchema.safeParse(s.doc).success).toBe(true);
+    s = reducer(s, { type: "undo" });
+    expect(s.doc.pages[0].elements.length).toBe(before);
+  });
+});

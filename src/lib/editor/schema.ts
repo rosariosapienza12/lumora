@@ -115,7 +115,7 @@ export const FONT_FAMILY: Record<FontId, string> = {
 
 export const ENTER_ANIMATIONS = ["none", "fade", "slide-up", "slide-left", "zoom", "pop", "blur"] as const;
 export const EMPHASIS_ANIMATIONS = ["none", "pulse", "wiggle", "float", "glow"] as const;
-export const TRANSITIONS = ["none", "fade", "slide-left", "slide-up", "zoom", "flip"] as const;
+export const TRANSITIONS = ["none", "fade", "slide-left", "slide-up", "zoom", "flip", "morph"] as const;
 
 const animation = z.object({
   enter: z.enum(ENTER_ANIMATIONS).default("none"),
@@ -157,6 +157,10 @@ const base = {
   flipY: z.boolean().optional(),
   /** Topic decoration added by Lumora (leaves, chips...): replaced when the topic changes. */
   decor: z.boolean().optional(),
+  /** The content field this text shows ("heading", "items.2.title"…): edits update the page's words. */
+  bind: z.string().max(40).optional(),
+  /** Added by hand on a page drawn from a layout: kept when the page re-composes itself. */
+  extra: z.boolean().optional(),
 };
 
 /** Optional second colour and direction: turns a flat colour into a gradient. */
@@ -287,6 +291,8 @@ export const page = z.object({
   pattern: z.enum(["none", "dots", "grid", "lines", "stars", "grain"]).optional(),
   /** The words and the layout the page was drawn from: lets "Cambia impaginazione" redraw it. */
   source: z.object({ layout: z.string().regex(/^[a-z-]{2,30}$/), content: pageContentSchema }).optional(),
+  /** In the presentation, the page's blocks appear one per click. */
+  build: z.boolean().optional(),
   /** Speaker notes: shown only to the presenter, never in the public viewer. */
   notes: plainText(5000).optional(),
 });
