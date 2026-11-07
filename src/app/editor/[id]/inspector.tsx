@@ -1,11 +1,11 @@
 "use client";
 
-import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
 import { isSvgShape, MENU_SHAPES, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
 import { RELIEF_NAMES, RELIEFS } from "@/lib/three/ids";
 import { Look3DControls, Object3DControls } from "./object3d-panel";
 import { ChartControls, IconControls, PollControls } from "./chart-panel";
 import { ContentPanel } from "./content-panel";
+import { DECORATION_NAMES, DECORATIONS, decorationLayers } from "@/lib/editor/decorations";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, getTheme, PATTERNS, type Pattern } from "@/lib/editor/themes";
@@ -225,30 +225,21 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
         <Section title="Stile 3D">
           <Look3DControls doc={doc} onLook={(look) => dispatch({ type: "look-3d", look })} />
         </Section>
-        <Section title="Argomento">
-          <p className="text-xs text-ink-soft">Illustrazioni ai margini delle pagine, scelte per l&apos;argomento. Non coprono i contenuti.</p>
-          <select
-            aria-label="Argomento"
-            className={inputCls}
-            value={doc.settings?.motif ?? (doc.settings?.decor?.length ? "zib" : "")}
-            onChange={(e) => e.target.value !== "zib" && dispatch({ type: "apply-motif", motif: isMotifId(e.target.value) ? e.target.value : undefined })}
-          >
-            {doc.settings?.decor?.length && !doc.settings.motif ? <option value="zib">Scelte da Zib per il tuo argomento</option> : null}
-            <option value="">Nessuna decorazione</option>
-            {MOTIF_IDS.map((id) => (
-              <option key={id} value={id}>
-                {MOTIFS[id].name}
-              </option>
-            ))}
-          </select>
-          <Row label="Quante decorazioni">
-            <select className={inputCls} value={doc.settings?.decorDensity ?? 2} onChange={(e) => dispatch({ type: "decor-density", density: Number(e.target.value) })}>
-              <option value={0}>Nessuna</option>
-              <option value={1}>Poche</option>
-              <option value={2}>Normali</option>
-              <option value={3}>Tante</option>
-            </select>
-          </Row>
+        <Section title="Decorazione">
+          <p className="text-xs text-ink-soft">Uno sfondo coordinato per tutte le pagine di contenuto: sta dietro ai testi, non li copre mai.</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {DECORATIONS.map((d) => {
+              const t = getTheme(doc.settings?.theme);
+              const c = doc.settings?.colors;
+              const current = doc.pages.find((p) => p.decoration)?.decoration?.style ?? "nessuna";
+              return (
+                <button key={d} aria-pressed={current === d} onClick={() => dispatch({ type: "decoration", style: d })} className="overflow-hidden rounded-xl border border-line text-left text-xs hover:border-violet aria-pressed:border-violet aria-pressed:ring-1 aria-pressed:ring-violet">
+                  <span aria-hidden className="block h-12 w-full" style={{ background: [decorationLayers(d, c?.accent ?? t.palette.accent, c?.accent2 ?? t.palette.accent2), t.palette.contentBg].filter(Boolean).join(", ") }} />
+                  <span className="block px-2 py-1">{DECORATION_NAMES[d]}</span>
+                </button>
+              );
+            })}
+          </div>
         </Section>
         <Section title="Presentazione">
           <Row label="Avanza da sola dopo (secondi, 0 = mai)">

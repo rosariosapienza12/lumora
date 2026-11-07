@@ -3,6 +3,7 @@ import { THEME_IDS } from "./themes";
 import { SHAPE_IDS, SVG_SHAPE_IDS, type SvgShape } from "./shapes";
 import { MOTIF_IDS } from "./motif-ids";
 import { pageContentSchema } from "./content";
+import { DECORATIONS } from "./decorations";
 import { FORMS_3D, MATERIALS_3D, RELIEFS } from "../three/ids";
 import { ICON_IDS, type IconId } from "./icons";
 import { chartDataSchema } from "./chart";
@@ -200,6 +201,8 @@ const shapeEl = z.object({
   photoSlot: z.boolean().optional(),
   /** Share of the "arc" shape that is drawn, 0-100. */
   progress: z.number().min(0).max(100).optional(),
+  /** Rectangle that fades from transparent (top) to its colour (bottom): a shade under words on a photo. */
+  fade: z.boolean().optional(),
   /** Light and shadow that make a flat drawing look 3D. */
   relief: z.enum(RELIEFS).optional(),
   ...stroke,
@@ -304,6 +307,8 @@ export const page = z.object({
   pattern: z.enum(["none", "dots", "grid", "lines", "stars", "grain"]).optional(),
   /** The words and the layout the page was drawn from: lets "Cambia impaginazione" redraw it. */
   source: z.object({ layout: z.string().regex(/^[a-z-]{2,30}$/), content: pageContentSchema }).optional(),
+  /** Background decoration in two colours (decorations.ts): never covers the content. */
+  decoration: z.object({ style: z.enum(DECORATIONS), color, color2: color }).optional(),
   /** In the presentation, the page's blocks appear one per click. */
   build: z.boolean().optional(),
   /** Speaker notes: shown only to the presenter, never in the public viewer. */

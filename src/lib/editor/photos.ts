@@ -86,12 +86,34 @@ export const isPhotoSlot = (e: Element) => e.type === "shape" && e.photoSlot ===
 export const countPhotoSlots = (doc: PresentationDoc) => doc.pages.reduce((n, p) => n + p.elements.filter(isPhotoSlot).length, 0);
 
 /** Fills the empty photo spaces, page by page, with the photos in order; spaces left over stay empty. */
-export function fillPhotoSlots(doc: PresentationDoc, photos: FreePhoto[]): PresentationDoc {
-  let next = 0;
+export function fillPhotoSlots(doc: PresentationDoc, photos: FreePhoto[], perPage: Map<string, FreePhoto[]> = new Map()): PresentationDoc {
+  // Each space gets the unused photo whose shape is closest to its own (a wide space a wide photo),
+  // so nothing important is cropped away; ties keep the search order (relevance). A page with
+  // its own search uses its own photos first.
+  const used = new Set<string>();
+  const pick = (slot: { w: number; h: number }, pool: FreePhoto[]) => {
+    const want = Math.log(slot.w / slot.h);
+    let best: FreePhoto | null = null;
+    let bestScore = Infinity;
+    pool.forEach((ph, i) => {
+      if (used.has(ph.src)) return;
+      const score = Math.abs(Math.log(ph.width / ph.height) - want) * 3 + i * 0.08;
+      if (score < bestScore) {
+        best = ph;
+        bestScore = score;
+      }
+    });
+    if (best) used.add((best as FreePhoto).src);
+    return best as FreePhoto | null;
+  };
   const pages = doc.pages.map(
     (p): Page => ({
       ...p,
-      elements: p.elements.map((e) => (isPhotoSlot(e) && next < photos.length ? photoElement(e, photos[next++]) : e)),
+      elements: p.elements.map((e) => {
+        if (!isPhotoSlot(e)) return e;
+        const ph = pick(e, perPage.get(p.id) ?? []) ?? pick(e, photos);
+        return ph ? photoElement(e, ph) : e;
+      }),
     }),
   );
   return withCreditsPage({ ...doc, pages });

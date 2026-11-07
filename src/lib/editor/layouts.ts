@@ -144,6 +144,8 @@ export function drawWith(t: Theme) {
     background,
     ...(cover && p.coverBg2 ? { color2: p.coverBg2, angle: 135 } : {}),
     ...(t.pattern && t.pattern !== "none" ? { pattern: t.pattern } : {}),
+    // Content pages wear the theme's background decoration; covers have their own composition.
+    ...(!cover && t.decoration && t.decoration !== "nessuna" ? { decoration: { style: t.decoration, color: p.accent, color2: p.accent2 } } : {}),
     transition,
     elements,
   });
@@ -712,7 +714,8 @@ function drawLayout(id: LayoutId, t: Theme, c: PageContent, opts: LayoutOptions)
         d.photoBox({ x: 0, y: 0, w: 1600, h: 900 }, { radius: 0, enter: "zoom" }),
         band
           ? d.shape({ x: 80, y: 520, w: 1000, h: 300 }, p.coverBg, { radius: 0, enter: "slide-up", delay: 0.2, ...(d.kind === "brutale" ? { stroke: p.coverTitle, strokeWidth: 6 } : {}) })
-          : d.shape({ x: 0, y: 560, w: 1600, h: 340 }, p.coverBg, { radius: 0, opacity: 0.82, enter: "slide-up", delay: 0.2 }),
+          : // A soft shade that darkens the photo towards the words, like editorial covers (no hard band).
+            ({ ...d.shape({ x: 0, y: 360, w: 1600, h: 540 }, p.coverBg, { radius: 0, opacity: 0.95, enter: "fade", delay: 0.2 }), fade: true } as Element),
         d.shape({ x: 120, y: 590, w: 80, h: 8 }, p.accent2, { radius: 4, enter: "slide-left", delay: 0.35 }),
         d.text({ x: 120, y: 620, w: band ? 920 : 1300, h: 130 }, H("Una foto che racconta tutto"), { size: 76, title: true, color: p.coverTitle, enter: "slide-up", delay: 0.3, lineHeight: 1.04 }),
         d.text({ x: 120, y: 756, w: band ? 920 : 1200, h: 48 }, c.subtitle || "Una riga per dire dove e quando", { size: 26, color: p.coverSub, delay: 0.45 }),

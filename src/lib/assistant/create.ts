@@ -16,18 +16,19 @@ export async function createDeckDocument(userId: string, request: { topic: strin
   let title = fallback.title;
   let doc = buildDeck(fallback);
   let photoQuery = fallback.photos;
+  let pageQueries = new Map<string, string>();
   let written = false;
 
   if (await canGenerate(userId)) {
     const generated = await generateDeck(request);
     const built = generated && docFromGenerated(generated, request.outline?.theme);
     if (built) {
-      ({ title, doc } = built);
+      ({ title, doc, pageQueries } = built);
       photoQuery = request.photos ? built.photoQuery || request.topic : undefined;
       written = true;
     }
   }
-  if (photoQuery && (await rateLimit(`images:${userId}`, 60, 60 * 60))) doc = (await addFreePhotos(doc, photoQuery)).doc;
+  if (photoQuery && (await rateLimit(`images:${userId}`, 60, 60 * 60))) doc = (await addFreePhotos(doc, photoQuery, pageQueries)).doc;
   if (!documentSchema.safeParse(doc).success) doc = buildDeck(fallback);
   return { title, doc, written };
 }
