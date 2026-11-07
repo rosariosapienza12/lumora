@@ -1,6 +1,8 @@
 import { ButtonLink } from "@/components/ui";
 import { Hero } from "./hero";
 import { PlanetTour } from "./planet-tour";
+import { Faq, Showcase } from "./showcase";
+import { GuestButton } from "../prova/guest-button";
 
 const security = [
   ["Verifica in due passaggi", "Un codice dall'app del telefono oltre alla password, con codici di emergenza."],
@@ -20,6 +22,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+
+      <Showcase />
 
       <PlanetTour />
 
@@ -54,12 +58,17 @@ export default function HomePage() {
         </div>
       </section>
 
+      <Faq />
+
       <section className="mx-auto w-[calc(100%-1.5rem)] max-w-7xl py-6">
         <div className="glass flex flex-col items-start gap-6 rounded-[36px] px-7 py-14 sm:px-12">
           <h2 className="max-w-2xl font-display text-4xl font-bold tracking-tight">La tua prossima presentazione può essere la prima che il pubblico tocca con mano.</h2>
-          <ButtonLink href="/registrati" className="px-6 py-3 text-base">
-            Crea un account gratis
-          </ButtonLink>
+          <div className="flex flex-wrap gap-3">
+            <GuestButton className="px-6 py-3 text-base">Prova subito, senza account</GuestButton>
+            <ButtonLink href="/registrati" variant="ghost" className="px-6 py-3 text-base">
+              Crea un account gratis
+            </ButtonLink>
+          </div>
         </div>
       </section>
     </>
