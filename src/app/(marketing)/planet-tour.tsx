@@ -435,7 +435,7 @@ function TourPlanet({
     <motion.div
       className="absolute"
       // Phones: no blur filter while the planet flies past (opacity and scale carry the motion).
-      style={{ left: `${stageX * 100}%`, top: `${stageY * 100}%`, x, y, scale, opacity, rotate, filter: lite ? undefined : filter, translateX: "-50%", translateY: "-50%" }}
+      style={{ left: `${stageX * 100}%`, top: `${stageY * 100}%`, x, y, scale, opacity, rotate, filter: lite ? "none" : filter, translateX: "-50%", translateY: "-50%" }}
     >
       <div className="absolute inset-[-45%] rounded-full" style={{ background: `radial-gradient(circle, ${feature.glow}55 0%, ${feature.glow}18 35%, transparent 62%)` }} />
       <div className="tour-orbit absolute inset-[-22%] rounded-full border" style={{ borderColor: `${feature.glow}30` }}>
@@ -449,7 +449,9 @@ function TourPlanet({
 
 function FeatureCopy({ feature, reduce, mobile, lite }: { feature: Feature; reduce: boolean; mobile: boolean; lite: boolean }) {
   // Phones: the text slides and fades without the blur, which is expensive to animate there.
-  const blur = (px: number) => (lite ? {} : { filter: `blur(${px}px)` });
+  // The filter is always set (0 on phones): the page first renders as on a computer, and a
+  // variant without a filter would leave that first blur on the text for good.
+  const blur = (px: number) => ({ filter: `blur(${lite ? 0 : px}px)` });
   const item = {
     hidden: { opacity: 0, y: 22, ...blur(8) },
     shown: { opacity: 1, y: 0, ...blur(0), transition: { duration: reduce ? 0 : 0.55, ease: EASE } },
