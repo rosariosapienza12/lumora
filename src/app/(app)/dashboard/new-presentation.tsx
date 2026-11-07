@@ -140,7 +140,6 @@ export function NewPresentation() {
                           <span className="flex items-start justify-between gap-3 p-3">
                             <span>
                               <span className="block font-semibold">{t.name}</span>
-                              <span className="block text-xs font-medium uppercase tracking-wide text-violet">Stile {t.style}</span>
                               <span className="block text-sm text-ink-soft">{t.description}</span>
                             </span>
                             <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-xs text-ink-soft">

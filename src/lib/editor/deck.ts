@@ -1,7 +1,7 @@
 import type { PresentationDoc } from "./schema";
 import { buildLayout, isLayoutId, type LayoutId } from "./layouts";
-import { getTheme, isThemeId, type ThemeId } from "./themes";
-import { decoratePage, detectMotif, isMotifId, MOTIFS, type MotifId } from "./motifs";
+import { getTheme, isThemeId, modernTheme, type ThemeId } from "./themes";
+import { detectMotif, isMotifId, MOTIFS, type MotifId } from "./motifs";
 
 /**
  * A presentation outline proposed by Zib or by "Nuova presentazione": a title,
@@ -74,10 +74,9 @@ export function parseDeck(raw: unknown): DeckSpec | null {
 /** Builds the presentation; the first cover page carries the deck title. Photos are added separately (see src/lib/images/fill.ts). */
 export function buildDeck(d: DeckSpec): PresentationDoc {
   const theme = getTheme(d.theme);
-  const pages = d.pages.map((p, i) => {
-    const page = buildLayout(p.layout, theme, p.heading || (i === 0 ? d.title : undefined), { motif: d.motif });
-    return d.motif ? decoratePage(page, d.motif, theme, i) : page;
-  });
+  // No automatic decorations: clean pages, like professional tools. The topic only picks icons;
+  // margin drawings can still be turned on from the editor (section Argomento).
+  const pages = d.pages.map((p, i) => buildLayout(p.layout, theme, p.heading || (i === 0 ? d.title : undefined), { motif: d.motif }));
   return { version: 1, pages, settings: { autoAdvance: 0, theme: d.theme, ...(d.motif ? { motif: d.motif } : {}) } };
 }
 
@@ -105,7 +104,7 @@ export function classifyTopic(topic: string): { kind: Kind; theme: ThemeId; moti
   // A trailing space in a word ("test ", "cv ") means the whole word only.
   const k = KINDS.find((x) => x.words.some((w) => t.includes(` ${w}`)));
   const motif = detectMotif(topic);
-  return { kind: k?.kind ?? "lezione", theme: motif ? MOTIFS[motif].theme : (k?.theme ?? "notte"), motif };
+  return { kind: k?.kind ?? "lezione", theme: modernTheme(motif ? MOTIFS[motif].theme : (k?.theme ?? "notte")), motif };
 }
 
 /** A small, stable number from a text: the same topic always gets the same variant, different topics get different ones. */
@@ -122,7 +121,7 @@ export function planDeck(topicRaw: string, forced: { kind?: Kind; theme?: ThemeI
   const auto = classifyTopic(topic);
   const kind = forced.kind ?? auto.kind;
   const motif = forced.motif === null ? undefined : (forced.motif ?? auto.motif);
-  const theme = forced.theme ?? (forced.motif ? MOTIFS[forced.motif].theme : auto.theme);
+  const theme = forced.theme ?? (forced.motif ? modernTheme(MOTIFS[forced.motif].theme) : auto.theme);
   const photos = forced.photos === true;
   const T = topic;
   const h = hash(normalize(topic));

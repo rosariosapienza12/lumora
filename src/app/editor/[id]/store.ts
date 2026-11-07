@@ -1,9 +1,10 @@
+import { freeSpot } from "@/lib/editor/templates";
 import { applyLook3D, relookPage, style3D, type Look3D } from "@/lib/three/styles";
 import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/lib/editor/schema";
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, isLayoutId, relatedLayouts, type LayoutId } from "@/lib/editor/layouts";
 import type { Pattern } from "@/lib/editor/themes";
-import { applyTheme, getTheme, type ThemeId } from "@/lib/editor/themes";
+import { applyTheme, getTheme, modernTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
 import { applyMotif, decoratePage, type MotifId } from "@/lib/editor/motifs";
 import { photoElement, withCreditsPage, type FreePhoto } from "@/lib/editor/photos";
@@ -42,6 +43,8 @@ export type Action =
   | { type: "decor-density"; density: number }
   /** Materials and forms of every 3D object in the presentation. */
   | { type: "look-3d"; look: Look3D }
+  /** Re-assembles the whole presentation in the current clean style (see restyle in store.ts). */
+  | { type: "restyle" }
   /** Redraw the current page with the next layout that can show the same words. */
   | { type: "relayout" }
   | { type: "pattern"; pattern: Pattern; all?: boolean }
@@ -127,6 +130,41 @@ function createElement(kind: ElementType, src?: string, alt = "", shape: ShapeId
         animation: { enter: "zoom", emphasis: "float", duration: 0.8, delay: 0 },
       };
   }
+}
+
+/**
+ * Re-assembles a presentation in the clean "studio" style: the closest current
+ * theme, no margin drawings, flat shapes. Pages nobody has edited are drawn
+ * again from their words with their layout; pages with edits or photos keep
+ * their elements (restyled), so nothing written by hand is lost. Buttons that
+ * lead to other pages are kept and moved to a free spot.
+ */
+export function restyle(doc: PresentationDoc): PresentationDoc {
+  const themeId = modernTheme((doc.settings?.theme ?? "notte") as ThemeId);
+  const themed = applyTheme(doc, themeId);
+  const theme = getTheme(themeId);
+  const pages = themed.pages.map((page): Page => {
+    const flat: Page = {
+      ...page,
+      pattern: undefined,
+      elements: page.elements.filter((e) => !e.decor).map((e) => (e.type === "shape" && e.relief ? { ...e, relief: undefined } : e)),
+    };
+    const src = page.source;
+    const words = src ? JSON.stringify(src.content) : "";
+    const texts = flat.elements.filter((e): e is Extract<Element, { type: "text" }> => e.type === "text");
+    const unedited = src && isLayoutId(src.layout) && !flat.elements.some((e) => e.type === "image") && texts.every((t) => words.includes(JSON.stringify(t.text).slice(1, -1)));
+    if (!src || !unedited || !isLayoutId(src.layout)) return flat;
+    const rebuilt = buildLayout(src.layout, theme, src.content);
+    const links = flat.elements.filter((e) => e.type === "button" && e.interaction?.action.kind === "goto");
+    const next: Page = { ...rebuilt, id: page.id, name: page.name, notes: page.notes, transition: page.transition, elements: [...rebuilt.elements] };
+    for (const b of links) next.elements.push({ ...b, ...freeSpot(next, b.w, b.h) });
+    return next;
+  });
+  const { motif: _m, decor: _d, decorDensity: _dd, ...settings } = themed.settings ?? { autoAdvance: 0 };
+  void _m;
+  void _d;
+  void _dd;
+  return { ...themed, pages, settings: { ...settings, autoAdvance: settings.autoAdvance ?? 0, theme: themeId } };
 }
 
 /** Removes references to elements/pages that no longer exist. */
@@ -276,6 +314,8 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return commit(state, applyTheme(state.doc, action.theme));
     case "apply-motif":
       return commit(state, applyMotif(state.doc, action.motif), { selectedId: null });
+    case "restyle":
+      return commit(state, restyle(state.doc), { selectedId: null });
     case "look-3d":
       return commit(state, applyLook3D(state.doc, action.look));
     case "decor-density":

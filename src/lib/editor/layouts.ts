@@ -1,6 +1,6 @@
 import type { Element, EnterAnimation, Interaction, Page } from "./schema";
 import { newId } from "./schema";
-import type { StyleKind, Theme } from "./themes";
+import type { CoverStyle, StyleKind, Theme } from "./themes";
 import type { ShapeId, SvgShape } from "./shapes";
 import { MOTIFS } from "./motifs";
 import type { MotifId } from "./motif-ids";
@@ -96,7 +96,7 @@ export function drawWith(t: Theme) {
   // Drawings are lit in the theme's relief (puffed, carved or enamelled); faint background washes stay flat.
   const look = style3D(t.id);
   const figure = (box: Box, k: ShapeId, fill: string, o: Omit<ShapeOpts, "ellipse"> = {}): Element =>
-    ({ ...shape(box, fill, o), shape: k, radius: 0, ...((o.opacity ?? 1) >= 0.5 && k !== "arc" && k !== "line" ? { relief: look.relief } : {}) }) as Element;
+    ({ ...shape(box, fill, o), shape: k, radius: 0, ...(kind !== "studio" && (o.opacity ?? 1) >= 0.5 && k !== "arc" && k !== "line" ? { relief: look.relief } : {}) }) as Element;
   /** A real 3D object in the theme's material (or the second one), slowly turning in the presentation. */
   const object = (box: Box, form: Form3D, o: { second?: boolean; color?: string; tiltX?: number; tiltY?: number; delay?: number; spin?: boolean; enter?: EnterAnimation } = {}): Element => ({
     ...base(o.enter ?? "zoom", o.delay),
@@ -149,7 +149,7 @@ export function drawWith(t: Theme) {
 
   /* ---------- The art direction ---------- */
 
-  const radius = { orbita: 32, editoriale: 0, brutale: 0, collage: 6, gesso: 18, neon: 14, organico: 56 }[kind];
+  const radius = { studio: 14, orbita: 32, editoriale: 0, brutale: 0, collage: 6, gesso: 18, neon: 14, organico: 56 }[kind];
   /** Small tilts for collage cards, so they look laid by hand. */
   const tilt = (i: number) => (kind === "collage" ? [-1.5, 1.2, -0.8, 1.6, -1.1, 0.9][i % 6] : 0);
 
@@ -158,6 +158,9 @@ export function drawWith(t: Theme) {
     const delay = o.delay ?? 0.1 + i * 0.12;
     const fill = o.tone ?? p.contentAlt;
     switch (kind) {
+      case "studio":
+        // Flat surface and a hairline border, like the cards of Pitch or Keynote.
+        return [shape(box, fill, { radius, stroke: p.card, strokeWidth: 2, enter: "fade", delay })];
       case "editoriale":
         // No boxes: a strong rule on top is enough on a magazine page.
         return [shape({ x: box.x, y: box.y, w: box.w, h: 4 }, p.title, { radius: 0, enter: "slide-left", delay })];
@@ -194,6 +197,8 @@ export function drawWith(t: Theme) {
     const est = Math.min(box.w, s.length * fs * 0.55);
     const left = o.align === "center" ? box.x + (box.w - est) / 2 : box.x;
     switch (kind) {
+      case "studio":
+        return [shape({ x: left, y: box.y - 22, w: 48, h: 5 }, p.accent, { radius: 3, enter: "slide-left" }), title];
       case "editoriale":
         return [title, shape({ x: box.x, y: box.y + box.h + 8, w: box.w, h: 2 }, p.title, { radius: 0, enter: "slide-left", delay: 0.2, opacity: 0.6 })];
       case "brutale":
@@ -215,6 +220,8 @@ export function drawWith(t: Theme) {
   const mark = (x: number, y: number, i: number, delay = 0): Element => {
     const fill = i % 2 ? p.accent2 : p.accent;
     switch (kind) {
+      case "studio":
+        return text({ x, y: y - 2, w: 64, h: 40 }, String(i + 1).padStart(2, "0"), { size: 24, title: true, weight: "600", color: p.accent, fit: false, delay });
       case "editoriale":
         return text({ x, y: y - 6, w: 70, h: 50 }, String(i + 1).padStart(2, "0"), { size: 32, title: true, color: p.accent, fit: false, delay });
       case "brutale":
@@ -240,9 +247,10 @@ export function drawWith(t: Theme) {
 type HeroRole = "cover" | "section" | "closing";
 
 /** Background art for the cover family, kept away from where the text goes. */
-function heroArt(d: Draw, role: HeroRole): Element[] {
+function heroArt(d: Draw, role: HeroRole, cover: CoverStyle = "plain"): Element[] {
   const { p } = d;
   const closing = role === "closing";
+  if (d.kind === "studio") return studioArt(d, closing ? (cover === "photo" ? "plain" : cover) : cover);
   switch (d.kind) {
     case "editoriale":
       return [
@@ -297,6 +305,39 @@ function heroArt(d: Draw, role: HeroRole): Element[] {
   }
 }
 
+/**
+ * Studio covers: type, colour blocks, rules and space, nothing drawn. The words
+ * sit where the theme's variant puts them; these shapes stay clear of them.
+ */
+function studioArt(d: Draw, cover: CoverStyle): Element[] {
+  const { p } = d;
+  switch (cover) {
+    case "split":
+      return [d.shape({ x: 1060, y: 0, w: 540, h: 900 }, p.accent, { radius: 0, enter: "slide-left" })];
+    case "band":
+      return [d.shape({ x: 0, y: 820, w: 1600, h: 80 }, p.accent, { radius: 0, enter: "slide-left" }), d.shape({ x: 120, y: 200, w: 72, h: 6 }, p.accent, { radius: 3, enter: "slide-left", delay: 0.1 })];
+    case "frame":
+      return [d.shape({ x: 48, y: 48, w: 1504, h: 804 }, p.coverBg, { radius: 0, stroke: p.coverSub, strokeWidth: 2, enter: "fade" })];
+    case "index":
+      return [d.text({ x: 1040, y: 120, w: 520, h: 660 }, "01", { size: 400, title: true, weight: "400", color: p.accent, fit: false, opacity: 0.9, enter: "blur", lineHeight: 1 })];
+    case "photo":
+      // A duotone panel: reads well with no photo, and any photo can be laid on it.
+      return [{ ...d.shape({ x: 1040, y: 0, w: 560, h: 900 }, p.accent, { radius: 0, enter: "fade" }), color2: p.accent2, angle: 160 } as Element];
+    case "corner":
+      return [d.shape({ x: 1240, y: 0, w: 360, h: 360 }, p.accent, { radius: 0, enter: "zoom" }), d.shape({ x: 1120, y: 360, w: 120, h: 120 }, p.accent2, { radius: 0, enter: "zoom", delay: 0.15 })];
+    case "rule":
+      return [d.shape({ x: 200, y: 200, w: 1200, h: 2 }, p.coverSub, { radius: 0, enter: "slide-left" }), d.shape({ x: 200, y: 700, w: 1200, h: 2 }, p.coverSub, { radius: 0, enter: "slide-left", delay: 0.1 })];
+    case "center":
+      return [d.shape({ x: 760, y: 170, w: 80, h: 6 }, p.accent, { radius: 3, enter: "zoom" })];
+    case "bottom":
+      return [d.shape({ x: 120, y: 330, w: 96, h: 6 }, p.accent, { radius: 3, enter: "slide-left" })];
+    case "stripe":
+      return [d.shape({ x: 0, y: 0, w: 24, h: 900 }, p.accent, { radius: 0, enter: "slide-up" }), d.shape({ x: 120, y: 200, w: 140, h: 36 }, p.accent, { radius: 0, enter: "slide-left", delay: 0.1 })];
+    default:
+      return [d.shape({ x: 120, y: 200, w: 56, h: 6 }, p.accent, { radius: 3, enter: "slide-left" })];
+  }
+}
+
 /** The same element seen in a mirror (for the right-handed cover variant). */
 function mirror(e: Element): Element {
   const flip = e.type === "shape" && e.shape !== "rect" && e.shape !== "ellipse" ? { flipX: !e.flipX } : {};
@@ -315,9 +356,10 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
   const sub = c.subtitle || defaults.subtitle;
   const v = role === "closing" ? (t.variant === 1 ? 1 : 0) : t.variant;
   // Centred words need the art in the corners; words at the bottom push the art up.
-  let art = heroArt(d, v === 2 && role !== "closing" ? "closing" : role);
+  const studio = d.kind === "studio";
+  let art = heroArt(d, v === 2 && role !== "closing" ? "closing" : role, t.cover);
   if (v === 1) art = art.map(mirror);
-  if (v === 3) art = art.map((e) => ({ ...e, y: e.y - 220 }));
+  if (v === 3 && !studio) art = art.map((e) => ({ ...e, y: e.y - 220 }));
   const sigBox = role === "closing" || v === 2 ? { x: 1300, y: 640, w: 200, h: 200 } : v === 1 ? { x: 70, y: 610, w: 240, h: 240 } : v === 3 ? { x: 1220, y: 560, w: 260, h: 260 } : { x: 1250, y: 600, w: 240, h: 240 };
   const sig = d.figure(sigBox, t.signature, p.accent2, { opacity: 0.9, enter: "pop", delay: 0.45, rotation: v === 1 ? 8 : -8 });
   // The theme's 3D composition: a hero object and two smaller ones in its material, away from the words.
@@ -334,7 +376,7 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
     d.object(placed[1], f2, { second: true, delay: 0.35, tiltX: 20, tiltY: -30 }),
     d.object(placed[2], f3, { delay: 0.5, tiltX: -35, tiltY: 50 }),
   ];
-  const els = [...art, sig, ...objects];
+  const els = studio ? [...art] : [...art, sig, ...objects];
   const side = v === 1 ? { x: 600, align: "right" as const } : { x: 120, align: "left" as const };
 
   if (role === "closing") {
@@ -361,9 +403,27 @@ function hero(d: Draw, role: HeroRole, c: PageContent, defaults: { heading: stri
     : v === 3 ? { x: 120, y: 400, w: 960, h: 300 }
     : editorial ? { x: side.x, y: 260, w: 880, h: 380 }
     : { x: side.x, y: 260, w: 880, h: 330 };
+  const title = d.text(box, heading, { size: editorial || v === 3 ? 132 : 104, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: editorial ? 0.98 : 1.02, align: v === 2 ? "center" : side.align });
+  let subY = v === 3 ? 720 : box.y + box.h + 20;
+  if (studio && title.type === "text") {
+    // Studio covers: the subtitle follows the title closely, and the block sits balanced on the page.
+    const fs = title.fontSize;
+    const perLine = Math.max(1, Math.floor(box.w / (fs * 0.6)));
+    const lines = heading.split(" ").reduce((acc, w) => {
+      const last = acc[acc.length - 1];
+      if (last.length + w.length + 1 <= perLine || !last.length) acc[acc.length - 1] = last ? `${last} ${w}` : w;
+      else acc.push(w);
+      return acc;
+    }, [""]).length;
+    const th = Math.min(box.h, Math.ceil(lines * fs * (title.lineHeight ?? 1.02)) + 8);
+    const block = th + 24 + 90;
+    const top = v === 3 ? 810 - block : Math.max(250, Math.round(470 - block / 2));
+    Object.assign(title, { y: top, h: th });
+    subY = top + th + 24;
+  }
   els.push(
-    d.text(box, heading, { size: editorial || v === 3 ? 132 : 104, title: true, color: p.coverTitle, enter: "slide-up", lineHeight: editorial ? 0.98 : 1.02, align: v === 2 ? "center" : side.align }),
-    d.text({ x: v === 2 ? 270 : box.x, y: v === 3 ? 720 : box.y + box.h + 20, w: v === 2 ? 1060 : 860, h: 90 }, sub, { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.35, align: v === 2 ? "center" : side.align }),
+    title,
+    d.text({ x: v === 2 ? 270 : box.x, y: subY, w: v === 2 ? 1060 : 860, h: 90 }, sub, { size: 34, color: p.coverSub, delay: 0.3, lineHeight: 1.35, align: v === 2 ? "center" : side.align }),
   );
   return d.page("Copertina", p.coverBg, els, "fade", true);
 }

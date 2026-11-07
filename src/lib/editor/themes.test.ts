@@ -30,10 +30,10 @@ describe("themes", () => {
 
   it("switching theme restyles pages and keeps the document valid", () => {
     const doc = buildTemplate("lezione", "Prova", "notte");
-    const neon = applyTheme(doc, "neon");
+    const neon = applyTheme(doc, "aurora");
     expect(valid(neon)).toBe("ok");
-    expect(neon.settings?.theme).toBe("neon");
-    expect(neon.pages[0].background).toBe(THEMES.find((t) => t.id === "neon")!.palette.coverBg);
+    expect(neon.settings?.theme).toBe("aurora");
+    expect(neon.pages[0].background).toBe(THEMES.find((t) => t.id === "aurora")!.palette.coverBg);
     expect(neon.pages[0].color2).toBeDefined();
     // Interactions and structure are untouched.
     expect(neon.pages.map((p) => p.elements.length)).toEqual(doc.pages.map((p) => p.elements.length));
@@ -70,8 +70,8 @@ describe("every theme has its own design, not just its own colours", () => {
     expect(new Set(covers).size).toBe(THEMES.length);
   });
 
-  it("each theme has a different signature drawing", () => {
-    expect(new Set(THEMES.map((t) => t.signature)).size).toBe(THEMES.length);
+  it("each theme composes its cover its own way", () => {
+    expect(new Set(THEMES.map((t) => t.cover)).size).toBe(THEMES.length);
   });
 
   it("art directions change the content pages too", () => {

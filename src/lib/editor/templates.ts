@@ -14,17 +14,17 @@ import { DEFAULT_THEME, getTheme, type ThemeId } from "./themes";
  */
 
 export const TEMPLATES = [
-  { id: "vuota", name: "Vuota", style: "Pagina bianca", theme: "notte", description: "Una copertina e nient'altro: parti da zero." },
-  { id: "lezione", name: "Lezione alla lavagna", style: "Lavagna e gesso", theme: "lavagna", description: "Prima cosa si pensa, poi cosa è vero: idea sbagliata, verità, parole chiave, esplorazione e verifica." },
-  { id: "pitch", name: "Pitch da keynote", style: "Keynote tech", theme: "neon", description: "Il caos, una sola soluzione, un numero gigante da solo, come funziona e l'invito finale." },
-  { id: "quiz", name: "Quiz a round", style: "Show a quiz", theme: "retro", description: "Tre round, ognuno con il suo cartello e una domanda; punteggio alla fine." },
-  { id: "relazione", name: "Relazione con i dati", style: "Racconto con i dati", theme: "accademico", description: "Domanda, dati onesti con la fonte, confronto, citazione e conclusioni." },
-  { id: "storia", name: "Storia a bivi", style: "Albo illustrato", theme: "pastello", description: "Chi guarda sceglie la strada: due percorsi e due finali." },
-  { id: "portfolio", name: "Portfolio", style: "Art déco", theme: "galleria", description: "Chi sei, i lavori in vetrina, i risultati e chi ha lavorato con te." },
-  { id: "workshop", name: "Workshop", style: "Progetto tecnico", theme: "laboratorio", description: "Programma, fasi, schede da scoprire, livelli e verifica finale." },
-  { id: "viaggio", name: "Diario di viaggio", style: "Poster da viaggio", theme: "orizzonte", description: "Foto d'apertura, itinerario, numeri del viaggio, cosa portare e i ricordi." },
-  { id: "tutorial", name: "Tutorial passo passo", style: "Spiegazione alla lavagna bianca", theme: "minimal", description: "Cosa serve, i passaggi in ordine, giusto e sbagliato, prova finale." },
-  { id: "notizia", name: "Servizio giornalistico", style: "Telegiornale", theme: "aziendale", description: "Il fatto in una frase, come è andata, i numeri, una voce e cosa succede ora." },
+  { id: "vuota", name: "Vuota", style: "Pagina bianca", theme: "aurora", description: "Una copertina e nient'altro: parti da zero." },
+  { id: "lezione", name: "Lezione alla lavagna", style: "Lavagna e gesso", theme: "carta", description: "Prima cosa si pensa, poi cosa è vero: idea sbagliata, verità, parole chiave, esplorazione e verifica." },
+  { id: "pitch", name: "Pitch da keynote", style: "Keynote tech", theme: "ardesia", description: "Il caos, una sola soluzione, un numero gigante da solo, come funziona e l'invito finale." },
+  { id: "quiz", name: "Quiz a round", style: "Show a quiz", theme: "corallo", description: "Tre round, ognuno con il suo cartello e una domanda; punteggio alla fine." },
+  { id: "relazione", name: "Relazione con i dati", style: "Racconto con i dati", theme: "nordico", description: "Domanda, dati onesti con la fonte, confronto, citazione e conclusioni." },
+  { id: "storia", name: "Storia a bivi", style: "Albo illustrato", theme: "lavanda", description: "Chi guarda sceglie la strada: due percorsi e due finali." },
+  { id: "portfolio", name: "Portfolio", style: "Art déco", theme: "sabbia", description: "Chi sei, i lavori in vetrina, i risultati e chi ha lavorato con te." },
+  { id: "workshop", name: "Workshop", style: "Progetto tecnico", theme: "marea", description: "Programma, fasi, schede da scoprire, livelli e verifica finale." },
+  { id: "viaggio", name: "Diario di viaggio", style: "Poster da viaggio", theme: "foresta", description: "Foto d'apertura, itinerario, numeri del viaggio, cosa portare e i ricordi." },
+  { id: "tutorial", name: "Tutorial passo passo", style: "Spiegazione alla lavagna bianca", theme: "inchiostro", description: "Cosa serve, i passaggi in ordine, giusto e sbagliato, prova finale." },
+  { id: "notizia", name: "Servizio giornalistico", style: "Telegiornale", theme: "grafite", description: "Il fatto in una frase, come è andata, i numeri, una voce e cosa succede ora." },
 ] as const satisfies readonly { id: string; name: string; style: string; theme: ThemeId; description: string }[];
 
 export type TemplateId = (typeof TEMPLATES)[number]["id"];
@@ -42,11 +42,13 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y <
  * buttons or pictures: first right under the lowest text (aligned with it),
  * then the free corners at the bottom and the top.
  */
-function linkButton(page: Page, target: Page, label: string, themeId: ThemeId) {
-  const d = drawWith(getTheme(themeId));
-  const w = 340;
-  const h = 76;
-  const busy = page.elements.filter((e) => !e.decor && (e.type === "text" || e.type === "button" || e.type === "image" || (e.type === "shape" && e.photoSlot)));
+/**
+ * A free spot for a button on a page, where it covers no words, buttons or
+ * pictures: first right under the lowest text (aligned with it), then the free
+ * corners at the bottom and the top.
+ */
+export function freeSpot(page: Page, w = 340, h = 76, ignore?: string): Box {
+  const busy = page.elements.filter((e) => e.id !== ignore && !e.decor && (e.type === "text" || e.type === "button" || e.type === "image" || (e.type === "shape" && e.photoSlot)));
   const texts = busy.filter((e): e is Extract<Element, { type: "text" }> => e.type === "text");
   const low = texts.reduce<(typeof texts)[number] | undefined>((a, e) => (!a || e.y + e.h > a.y + a.h ? e : a), undefined);
   const under: Box[] = low
@@ -59,8 +61,13 @@ function linkButton(page: Page, target: Page, label: string, themeId: ThemeId) {
     { x: 60, y: CANVAS_H - h - 40, w, h },
     { x: 1600 - w - 60, y: 30, w, h },
   ];
-  const box = spots.find((s) => s.y + s.h <= CANVAS_H - 10 && !busy.some((e) => overlaps(s, e))) ?? spots[1];
-  page.elements.push(d.button(box, label, d.goto(target), { delay: 0.6 }));
+  return spots.find((s) => s.y + s.h <= CANVAS_H - 10 && !busy.some((e) => overlaps(s, e))) ?? spots[1];
+}
+
+/** Adds a button that leads to `target`, in a free spot of the page. */
+function linkButton(page: Page, target: Page, label: string, themeId: ThemeId) {
+  const d = drawWith(getTheme(themeId));
+  page.elements.push(d.button(freeSpot(page), label, d.goto(target), { delay: 0.6 }));
 }
 
 export function buildTemplate(id: TemplateId, title: string, themeId: ThemeId = templateTheme(id)): PresentationDoc {

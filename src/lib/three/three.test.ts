@@ -11,9 +11,9 @@ import { lightDir, rotation } from "./renderer";
 const pal = { main: "vetro", second: "cromo", accent: "#5b3df5", accent2: "#ffb547" } as const;
 
 describe("3D objects", () => {
-  it("every theme has its own 3D look", () => {
-    const looks = THEMES.map((t) => JSON.stringify(THEME_3D[t.id]));
-    expect(new Set(looks).size).toBe(THEMES.length);
+  it("the earlier themes each keep their own 3D look for objects added by hand", () => {
+    const looks = Object.values(THEME_3D).map((l) => JSON.stringify(l));
+    expect(new Set(looks).size).toBe(looks.length);
   });
 
   it.each(COMPOSITIONS.map((c) => c.id))("composition %s is a valid page", (id) => {
@@ -23,16 +23,17 @@ describe("3D objects", () => {
     expect(documentSchema.safeParse(doc).success).toBe(true);
   });
 
-  it("covers carry a 3D composition in the theme's materials", () => {
+  it("covers are clean: no automatic 3D objects and no drawings", () => {
     for (const t of THEMES) {
-      const objs = buildLayout("copertina", t).elements.filter((e) => e.type === "object3d");
-      expect(objs).toHaveLength(3);
-      expect(objs.every((o) => o.type === "object3d" && [THEME_3D[t.id].material, THEME_3D[t.id].second].includes(o.material))).toBe(true);
+      const els = buildLayout("copertina", t).elements;
+      expect(els.some((e) => e.type === "object3d")).toBe(false);
+      expect(els.some((e) => e.type === "shape" && e.shape !== "rect" && e.shape !== "ellipse" && !e.photoSlot)).toBe(false);
     }
   });
 
   it("a new look re-makes the objects and is remembered", () => {
-    const doc = buildTemplate("pitch", "Prova", "neon");
+    const base = buildTemplate("pitch", "Prova", "ardesia");
+    const doc = { ...base, pages: [{ ...base.pages[0], elements: [...base.pages[0].elements, ...buildComposition("podio", { ...pal, main: "satinato", second: "vetro" })] }, ...base.pages.slice(1)] };
     const look = { material: "marmo", second: "gesso", forms: ["torsione", "piramide", "sfera"] } as const;
     const next = applyLook3D(doc, { ...look, forms: [...look.forms] });
     const objs = next.pages.flatMap((p) => p.elements).filter((e) => e.type === "object3d");
@@ -50,9 +51,9 @@ describe("3D objects", () => {
     expect(documentSchema.safeParse(page({ ...el, tiltX: 900 })).success).toBe(false);
   });
 
-  it("drawings in layouts are lit in the theme's relief", () => {
-    const shapes = buildLayout("icone", getTheme("pastello")).elements.filter((e) => e.type === "shape" && e.relief);
-    expect(shapes.length).toBeGreaterThan(0);
+  it("drawings in layouts stay flat in the clean themes", () => {
+    const shapes = buildLayout("icone", getTheme("lavanda")).elements.filter((e) => e.type === "shape" && e.relief);
+    expect(shapes).toHaveLength(0);
   });
 
   it("rotation matrices are orthonormal and light comes from above", () => {
