@@ -4,6 +4,7 @@ import { FONT_FAMILY } from "@/lib/editor/schema";
 import { fillRule, isSvgShape, SVG_SHAPES } from "@/lib/editor/shapes";
 import type { Relief } from "@/lib/three/ids";
 import { FitStage } from "./fit-stage";
+import { decorationLayers } from "@/lib/editor/decorations";
 import { Object3DView } from "./object3d";
 import { ChartView } from "./chart-view";
 import { PollView } from "./poll-view";
@@ -35,7 +36,8 @@ function patternLayers(pattern: Page["pattern"], background: string) {
 }
 
 export const pageBackground = (p: Page) => {
-  const layers = patternLayers(p.pattern, p.background);
+  const deco = p.decoration ? decorationLayers(p.decoration.style, p.decoration.color, p.decoration.color2) : "";
+  const layers = [deco, patternLayers(p.pattern, p.background)].filter(Boolean).join(", ");
   const base = paint(p.background, p.color2, p.angle);
   return layers ? `${layers}, ${base}` : base;
 };
@@ -177,7 +179,7 @@ export function ElementBody({ el, live = false }: { el: Element; live?: boolean 
           style={{
             width: "100%",
             height: "100%",
-            background: paint(el.fill, el.color2, el.angle),
+            background: el.fade ? `linear-gradient(180deg, ${el.fill}00 0%, ${el.fill}b3 45%, ${el.fill} 100%)` : paint(el.fill, el.color2, el.angle),
             borderRadius: el.shape === "ellipse" ? "50%" : el.radius,
             ...strokeStyle(el.stroke, el.strokeWidth),
           }}

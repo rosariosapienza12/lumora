@@ -80,7 +80,7 @@ describe("outlines with topic and photos", () => {
     const n = countPhotoSlots(doc);
     expect(n).toBeGreaterThan(2);
     const photo: FreePhoto = { src: "https://upload.wikimedia.org/a.jpg", thumb: "https://upload.wikimedia.org/t.jpg", width: 2000, height: 1300, title: "Mare", author: "Ada", license: "CC BY-SA 4.0", pageUrl: "https://commons.wikimedia.org/wiki/File:Mare.jpg" };
-    const filled = fillPhotoSlots(doc, [photo, photo]);
+    const filled = fillPhotoSlots(doc, [photo, { ...photo, src: "https://upload.wikimedia.org/b.jpg" }]);
     expect(countPhotoSlots(filled)).toBe(n - 2);
     const img = filled.pages.flatMap((p) => p.elements).find((e) => e.type === "image");
     expect(img).toMatchObject({ credit: "Ada · CC BY-SA 4.0 · Wikimedia Commons", fit: "cover" });
@@ -118,7 +118,7 @@ describe("Wikimedia Commons answers", () => {
 
   it("keeps author, licence and a large https image", () => {
     expect(parse(page())).toEqual([
-      expect.objectContaining({ author: "Mario & Co", license: "CC BY 4.0", title: "Grande onda", src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Grande_onda.jpg/1280px-Grande_onda.jpg" }),
+      expect.objectContaining({ author: "Mario & Co", license: "CC BY 4.0", title: "Grande onda", src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Grande_onda.jpg/1920px-Grande_onda.jpg" }),
     ]);
   });
 
@@ -135,5 +135,23 @@ describe("Wikimedia Commons answers", () => {
     expect(plainText("<b>Anna</b> &lt;script&gt;")).toBe("Anna <script>");
     // Decoded once only: an escaped entity stays an entity.
     expect(plainText("Tom &amp;lt;b&amp;gt; &#39;x&#39;")).toBe("Tom &lt;b&gt; 'x'");
+  });
+});
+
+describe("photo quality", () => {
+  const ph = (src: string, width: number, height: number): FreePhoto => ({ src, thumb: src, width, height, title: "t", author: "a", license: "CC BY 4.0", pageUrl: "https://commons.wikimedia.org/wiki/File:x.jpg" });
+  it("gives a wide space a wide photo and never repeats a photo", () => {
+    const doc = buildDeck(planDeck("il mare", { photos: true }));
+    const filled = fillPhotoSlots(doc, [ph("https://upload.wikimedia.org/tall.jpg", 1300, 2000), ph("https://upload.wikimedia.org/wide.jpg", 2400, 1350), ph("https://upload.wikimedia.org/wide2.jpg", 2400, 1400)]);
+    const imgs = filled.pages.flatMap((p) => p.elements).filter((e) => e.type === "image");
+    const first = imgs[0];
+    expect(first.w / first.h > 1 ? first.type === "image" && first.src.includes("wide") : true).toBe(true);
+    expect(new Set(imgs.map((e) => (e.type === "image" ? e.src : ""))).size).toBe(imgs.length);
+  });
+
+  it("leaves out maps, logos, small files and PNG drawings from Commons", () => {
+    const page = (title: string, mime: string, width: number, height: number) => ({ title, index: 1, imageinfo: [{ url: "https://upload.wikimedia.org/a/ab/x.jpg", thumburl: "https://upload.wikimedia.org/a/ab/x.jpg/500px-x.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:x.jpg", width, height, mime, extmetadata: { LicenseShortName: { value: "CC BY 4.0" }, Artist: { value: "A" } } }] });
+    const json = { query: { pages: [page("File:Mappa di Roma.jpg", "image/jpeg", 3000, 2000), page("File:Logo.png", "image/png", 3000, 2000), page("File:Piccola.jpg", "image/jpeg", 900, 600), page("File:Colosseo al tramonto.jpg", "image/jpeg", 3000, 2000)] } };
+    expect(parseCommons(json).map((p) => p.title)).toEqual(["Colosseo al tramonto"]);
   });
 });

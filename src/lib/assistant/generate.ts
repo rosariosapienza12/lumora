@@ -29,6 +29,8 @@ const generatedPage = z.object({
   layout: z.string(),
   content: pageContentSchema,
   notes: z.string().trim().max(1500).optional(),
+  /** For pages with photos: 1-4 concrete words for what this page's photo must show. */
+  photo: z.string().trim().max(60).optional(),
 });
 
 export const generatedDeckSchema = z.object({
@@ -90,6 +92,7 @@ Aspetto, scelto per l'argomento:
 - theme: uno di ${THEMES.map((t) => `${t.id} (${t.name}: ${t.mood})`).join("; ")}.
 - decor: 3-4 disegni per i margini e le icone, scelti tra: ${ILLUSTRATION_IDS.join(", ")}, leaf, star, heart, drop, moon, cloud, wave, sun.
 - photoQuery: 1-4 parole concrete per cercare foto su Wikimedia Commons (solo se richieste).
+- photo (per ogni pagina con foto: foto-piena, immagine-testo, mosaico, esplora): 1-4 parole concrete e fotografabili per QUELLA pagina, il soggetto preciso (per esempio "Colosseo interno arena", "anfiteatro Flavio esterno", "gladiatori mosaico"), mai concetti astratti: le foto devono far capire la pagina.
 - look3d: gli oggetti 3D realistici di copertine, sezioni e chiusura. material e second tra: ${MATERIALS_3D.join(", ")}; forms: 3 forme tra ${FORMS_3D.join(", ")}. Scegli in modo evocativo per l'argomento (per esempio l'acqua: vetro e gocce; la finanza: metallo e monete; la chimica: vetro e molecola; l'arte classica: marmo e colonna ritorta).
 
 Layout disponibili e campi che leggono:
@@ -124,7 +127,7 @@ Scrivi 8-12 pagine piene di contenuto vero e specifico: copertina all'inizio, ch
 }
 
 /** Builds the document from Zib's answer, dropping unknown layouts and drawings. Null if nothing valid remains. */
-export function docFromGenerated(g: GeneratedDeck, forcedTheme?: ThemeId): { title: string; doc: PresentationDoc; photoQuery?: string } | null {
+export function docFromGenerated(g: GeneratedDeck, forcedTheme?: ThemeId): { title: string; doc: PresentationDoc; photoQuery?: string; pageQueries: Map<string, string> } | null {
   const themeId: ThemeId = forcedTheme ?? modernTheme(isThemeId(g.theme) ? g.theme : "aurora");
   const theme = getTheme(themeId);
   const decor = g.decor.filter((s): s is SvgShape => isSvgShape(s)).slice(0, 4);
@@ -142,5 +145,8 @@ export function docFromGenerated(g: GeneratedDeck, forcedTheme?: ThemeId): { tit
     doc = applyLook3D(doc, { material: l.material, second: l.second, forms: l.forms as [Form3D, Form3D, Form3D] });
   }
   if (!documentSchema.safeParse(doc).success) return null;
-  return { title: g.title, doc, photoQuery: g.photoQuery };
+  // The photo words of each page, by page id (pages keep the order of Zib's answer).
+  const valid = g.pages.filter((p) => isLayoutId(p.layout));
+  const pageQueries = new Map(doc.pages.flatMap((p, i) => (valid[i]?.photo ? [[p.id, valid[i].photo!] as [string, string]] : [])));
+  return { title: g.title, doc, photoQuery: g.photoQuery, pageQueries };
 }

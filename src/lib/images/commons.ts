@@ -27,8 +27,13 @@ function fileUrl(raw: unknown): string | null {
   }
 }
 const THUMB = 500;
-const LARGE = 1280;
-const MIN_WIDTH = 800;
+/** Sharp even full-screen on a large display. */
+const LARGE = 1920;
+/** Photos smaller than this look blurred on a slide: they are left out. */
+const MIN_WIDTH = 1200;
+const MIN_HEIGHT = 700;
+/** Files that are rarely good slide photos: maps, logos, diagrams, scans, flags, stamps, text. */
+const NOT_A_PHOTO = /\b(map|mappa|carta geografica|logo|diagram|diagramma|schema|chart|grafico|coat of arms|stemma|flag|bandiera|icon|icona|drawing|disegno|plan|pianta|planimetria|scan|page|pagina|stamp|francobollo|screenshot|cartina|infographic|poster|manifesto|text|testo|signature|firma)\b/i;
 
 /** Licences Lumora does not use: non-commercial or no-derivatives terms, or no clear licence. */
 const NOT_FREE = /\b(NC|ND)\b|non[- ]commercial|no deriv|fair use/i;
@@ -82,8 +87,12 @@ export function parseCommons(json: unknown): FreePhoto[] {
     const thumburl = fileUrl(info.thumburl);
     if (!url || !thumburl) continue;
     if (typeof descriptionurl !== "string" || !descriptionurl.startsWith("https://commons.wikimedia.org/")) continue;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(String(mime))) continue;
-    if (typeof width !== "number" || typeof height !== "number" || width < MIN_WIDTH) continue;
+    // Real photographs: JPEG (PNG files on Commons are mostly maps, diagrams and logos).
+    if (!["image/jpeg", "image/webp"].includes(String(mime))) continue;
+    if (typeof width !== "number" || typeof height !== "number" || width < MIN_WIDTH || height < MIN_HEIGHT) continue;
+    if (NOT_A_PHOTO.test(page.title)) continue;
+    // Panoramas and very tall strips crop badly on a slide.
+    if (width / height > 2.6 || height / width > 1.8) continue;
     const license = plainText(meta.LicenseShortName?.value, 60);
     if (!license || NOT_FREE.test(license)) continue;
     // A large thumbnail when the original is bigger than needed; otherwise the original itself.
@@ -117,28 +126,37 @@ export async function searchCommons(query: string, limit = 24): Promise<FreePhot
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.photos;
 
-  const params = new URLSearchParams({
-    action: "query",
-    format: "json",
-    formatversion: "2",
-    generator: "search",
-    // Photos and drawings only (no PDFs, videos or sounds).
-    gsrsearch: `${q} filetype:bitmap`,
-    gsrnamespace: "6",
-    gsrlimit: String(Math.min(50, limit * 2)),
-    prop: "imageinfo",
-    iiprop: "url|size|mime|extmetadata",
-    iiurlwidth: String(THUMB),
-    iiextmetadatafilter: "Artist|LicenseShortName",
-    iiextmetadatalanguage: "it",
-  });
-  const res = await fetch(`${API}?${params}`, {
-    headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(8000),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Commons answered ${res.status}`);
-  const photos = parseCommons(await res.json()).slice(0, limit);
+  const run = async (search: string, max: number) => {
+    const params = new URLSearchParams({
+      action: "query",
+      format: "json",
+      formatversion: "2",
+      generator: "search",
+      gsrsearch: search,
+      gsrnamespace: "6",
+      gsrlimit: String(Math.min(50, max)),
+      prop: "imageinfo",
+      iiprop: "url|size|mime|extmetadata",
+      iiurlwidth: String(THUMB),
+      iiextmetadatafilter: "Artist|LicenseShortName",
+      iiextmetadatalanguage: "it",
+    });
+    const res = await fetch(`${API}?${params}`, {
+      headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Commons answered ${res.status}`);
+    return parseCommons(await res.json());
+  };
+  // First the photos Commons reviewers selected for sharpness, exposure and composition
+  // ("Quality images", "Featured pictures"), then the rest of the search.
+  const [best, rest] = await Promise.all([
+    run(`${q} filetype:bitmap incategory:Quality_images`, limit).catch(() => [] as FreePhoto[]),
+    run(`${q} filetype:bitmap`, limit * 2),
+  ]);
+  const seen = new Set<string>();
+  const photos = [...best, ...rest].filter((ph) => !seen.has(ph.src) && seen.add(ph.src)).slice(0, limit);
 
   if (cache.size > 300) cache.delete(cache.keys().next().value!);
   cache.set(key, { at: Date.now(), photos });

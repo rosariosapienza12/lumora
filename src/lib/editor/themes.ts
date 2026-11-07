@@ -1,6 +1,7 @@
 import { style3D } from "../three/styles";
 import type { Element, FontId, Page, PresentationDoc } from "./schema";
 import type { SvgShape } from "./shapes";
+import type { Decoration } from "./decorations";
 
 /**
  * Visual themes: a palette of named roles and a pair of typefaces. Templates
@@ -72,7 +73,7 @@ export type Pattern = (typeof PATTERNS)[number];
 export const COVER_STYLES = ["plain", "split", "band", "frame", "index", "photo", "corner", "rule", "center", "bottom", "stripe"] as const;
 export type CoverStyle = (typeof COVER_STYLES)[number];
 
-export type Theme = { id: string; name: string; mood: string; kind: StyleKind; variant: 0 | 1 | 2 | 3; signature: SvgShape; pattern?: Pattern; cover?: CoverStyle; palette: Palette; fonts: { title: FontId; body: FontId } };
+export type Theme = { id: string; name: string; mood: string; kind: StyleKind; variant: 0 | 1 | 2 | 3; signature: SvgShape; pattern?: Pattern; cover?: CoverStyle; decoration?: Decoration; palette: Palette; fonts: { title: FontId; body: FontId } };
 
 /**
  * The themes shown to people: clean, typographic, one accent colour each,
@@ -82,67 +83,67 @@ export type Theme = { id: string; name: string; mood: string; kind: StyleKind; v
 export const STUDIO_THEMES = [
   {
     id: "aurora", name: "Aurora", mood: "Viola notte con lampi rosa: il tema di Lumora.",
-    kind: "studio", variant: 1, signature: "diamond", cover: "plain",
+    kind: "studio", variant: 1, signature: "diamond", cover: "plain", decoration: "sfumature",
     palette: { coverBg: "#1b1036", coverBg2: "#3a1c71", coverTitle: "#ffffff", coverSub: "#d9cffb", contentBg: "#ffffff", contentAlt: "#f6f4fb", title: "#1b1036", text: "#454057", muted: "#8a84a0", card: "#ebe6f7", accent: "#7c4dff", accent2: "#ff5fa2", onAccent: "#ffffff", ok: "#14a37f", ko: "#e5484d" },
     fonts: { title: "display", body: "clean" },
   },
   {
     id: "ardesia", name: "Ardesia", mood: "Grafite profonda e blu elettrico: tecnologia e prodotto.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "split",
+    kind: "studio", variant: 0, signature: "diamond", cover: "split", decoration: "piani",
     palette: { coverBg: "#111418", coverTitle: "#ffffff", coverSub: "#a9b1bd", contentBg: "#ffffff", contentAlt: "#f4f6f8", title: "#111418", text: "#3b424c", muted: "#8a929c", card: "#e6eaef", accent: "#3d6bff", accent2: "#111418", onAccent: "#ffffff", ok: "#13a36b", ko: "#e5484d" },
     fonts: { title: "geometric", body: "clean" },
   },
   {
     id: "carta", name: "Carta", mood: "Carta calda e inchiostro, titoli con grazie: lezioni e racconti.",
-    kind: "studio", variant: 2, signature: "diamond", cover: "frame",
+    kind: "studio", variant: 2, signature: "diamond", cover: "frame", decoration: "cornice",
     palette: { coverBg: "#f6f1e8", coverTitle: "#1c1a17", coverSub: "#6b6257", contentBg: "#fbf8f2", contentAlt: "#ffffff", title: "#1c1a17", text: "#3f3a33", muted: "#8b8276", card: "#ece4d6", accent: "#c2502e", accent2: "#2f5d50", onAccent: "#ffffff", ok: "#2f7d4f", ko: "#b3261e" },
     fonts: { title: "serif", body: "story" },
   },
   {
     id: "nordico", name: "Nordico", mood: "Bianco nitido, blu notte e un blu deciso: report e dati.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "band",
+    kind: "studio", variant: 0, signature: "diamond", cover: "band", decoration: "onda",
     palette: { coverBg: "#ffffff", coverTitle: "#0b1f3a", coverSub: "#51627a", contentBg: "#ffffff", contentAlt: "#f3f6fa", title: "#0b1f3a", text: "#33435a", muted: "#7c8aa0", card: "#e3eaf3", accent: "#2563eb", accent2: "#0b1f3a", onAccent: "#ffffff", ok: "#0f9f6e", ko: "#dc2626" },
     fonts: { title: "modern", body: "clean" },
   },
   {
     id: "foresta", name: "Foresta", mood: "Verde bosco, crema e oro: natura, viaggi e territorio.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "photo",
+    kind: "studio", variant: 0, signature: "diamond", cover: "photo", decoration: "sfumature",
     palette: { coverBg: "#0f2a22", coverTitle: "#f5efe1", coverSub: "#b9c9bd", contentBg: "#fbf8f1", contentAlt: "#ffffff", title: "#0f2a22", text: "#34463f", muted: "#7b8a82", card: "#e8e2d3", accent: "#2f7a5b", accent2: "#c99a4a", onAccent: "#ffffff", ok: "#2f7a5b", ko: "#b3261e" },
     fonts: { title: "refined", body: "clean" },
   },
   {
     id: "corallo", name: "Corallo", mood: "Bianco caldo e corallo vivace: quiz, scuola e giovani.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "corner",
+    kind: "studio", variant: 0, signature: "diamond", cover: "corner", decoration: "piani",
     palette: { coverBg: "#fff6f2", coverTitle: "#2b1b17", coverSub: "#7a5d55", contentBg: "#ffffff", contentAlt: "#fff3ee", title: "#2b1b17", text: "#4a3a35", muted: "#9a857e", card: "#ffe3d8", accent: "#ff5a4e", accent2: "#2b1b17", onAccent: "#ffffff", ok: "#14a37f", ko: "#d92d20" },
     fonts: { title: "geometric", body: "geometric" },
   },
   {
     id: "inchiostro", name: "Inchiostro", mood: "Nero assoluto e verde acido: pitch e lanci che si fanno notare.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "index",
+    kind: "studio", variant: 0, signature: "diamond", cover: "index", decoration: "bagliore",
     palette: { coverBg: "#0a0a0a", coverTitle: "#ffffff", coverSub: "#a3a3a3", contentBg: "#0f0f0f", contentAlt: "#1a1a1a", title: "#ffffff", text: "#d4d4d4", muted: "#8a8a8a", card: "#262626", accent: "#c6ff3d", accent2: "#ffffff", onAccent: "#0a0a0a", ok: "#c6ff3d", ko: "#ff5a5a" },
     fonts: { title: "impact", body: "clean" },
   },
   {
     id: "lavanda", name: "Lavanda", mood: "Lilla chiaro, viola e arancio: storie, idee e creatività.",
-    kind: "studio", variant: 2, signature: "diamond", cover: "rule",
+    kind: "studio", variant: 2, signature: "diamond", cover: "rule", decoration: "sfumature",
     palette: { coverBg: "#f3f1ff", coverTitle: "#24124a", coverSub: "#6a5c8e", contentBg: "#fbfaff", contentAlt: "#ffffff", title: "#24124a", text: "#463d5e", muted: "#8f86a8", card: "#e7e2fb", accent: "#6d4aff", accent2: "#ff8a3d", onAccent: "#ffffff", ok: "#14a37f", ko: "#e5484d" },
     fonts: { title: "soft", body: "clean" },
   },
   {
     id: "marea", name: "Marea", mood: "Blu petrolio e azzurro: formazione, workshop e metodo.",
-    kind: "studio", variant: 3, signature: "diamond", cover: "bottom",
+    kind: "studio", variant: 3, signature: "diamond", cover: "bottom", decoration: "onda",
     palette: { coverBg: "#06283d", coverBg2: "#0b3b57", coverTitle: "#ffffff", coverSub: "#a8cbe0", contentBg: "#ffffff", contentAlt: "#f1f7fb", title: "#06283d", text: "#2f4a5c", muted: "#7895a6", card: "#dcebf4", accent: "#1f9bde", accent2: "#06283d", onAccent: "#ffffff", ok: "#14a37f", ko: "#e5484d" },
     fonts: { title: "tech", body: "clean" },
   },
   {
     id: "sabbia", name: "Sabbia", mood: "Sabbia e terracotta, titoli da rivista: portfolio e cultura.",
-    kind: "studio", variant: 2, signature: "diamond", cover: "center",
+    kind: "studio", variant: 2, signature: "diamond", cover: "center", decoration: "cornice",
     palette: { coverBg: "#efe7da", coverTitle: "#3b2f2a", coverSub: "#7d6a5e", contentBg: "#f8f4ec", contentAlt: "#ffffff", title: "#3b2f2a", text: "#54463e", muted: "#958475", card: "#e6dccb", accent: "#8a5a44", accent2: "#3b2f2a", onAccent: "#ffffff", ok: "#4f7d4f", ko: "#b3261e" },
     fonts: { title: "magazine", body: "clean" },
   },
   {
     id: "grafite", name: "Grafite", mood: "Grigio perla e nero con una riga rossa: notizie e comunicazione.",
-    kind: "studio", variant: 0, signature: "diamond", cover: "stripe",
+    kind: "studio", variant: 0, signature: "diamond", cover: "stripe", decoration: "nessuna",
     palette: { coverBg: "#f2f2f0", coverTitle: "#111111", coverSub: "#5f5f5c", contentBg: "#ffffff", contentAlt: "#f5f5f3", title: "#111111", text: "#3a3a38", muted: "#8a8a86", card: "#e7e7e3", accent: "#e8412c", accent2: "#111111", onAccent: "#ffffff", ok: "#1f9d55", ko: "#e8412c" },
     fonts: { title: "condensed", body: "clean" },
   },
@@ -433,7 +434,13 @@ export function applyTheme(doc: PresentationDoc, toId: ThemeId): PresentationDoc
         }
       }
     });
-    return { ...p, background, ...gradient, elements };
+    // Decorations take the new theme's colours, and its own style when the page had the old theme's.
+    const decoration = p.decoration
+      ? p.decoration.style === from.decoration && to.decoration === "nessuna"
+        ? undefined
+        : { style: p.decoration.style === from.decoration && to.decoration ? to.decoration : p.decoration.style, color: fill(p.decoration.color), color2: fill(p.decoration.color2) }
+      : undefined;
+    return { ...p, background, ...gradient, elements, decoration };
   });
   return { ...doc, pages, settings: { ...doc.settings, autoAdvance: doc.settings?.autoAdvance ?? 0, theme: to.id as ThemeId } };
 }

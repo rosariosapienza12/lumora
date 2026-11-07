@@ -4,6 +4,7 @@ import type { Element, ElementType, Page, PresentationDoc, Transition } from "@/
 import { blankPage, CANVAS_H, CANVAS_W, newId } from "@/lib/editor/schema";
 import { buildLayout, isLayoutId, relatedLayouts, type LayoutId } from "@/lib/editor/layouts";
 import { setAt, type PageContent } from "@/lib/editor/content";
+import type { Decoration } from "@/lib/editor/decorations";
 import type { Pattern } from "@/lib/editor/themes";
 import { applyTheme, getTheme, modernTheme, type ThemeId } from "@/lib/editor/themes";
 import type { ShapeId } from "@/lib/editor/shapes";
@@ -46,6 +47,8 @@ export type Action =
   | { type: "look-3d"; look: Look3D }
   /** New words for a page drawn from a layout: the page re-composes itself around them (smart layout). */
   | { type: "page-content"; content: PageContent; coalesce?: boolean }
+  /** The background decoration of every content page (decorations.ts). */
+  | { type: "decoration"; style: Decoration }
   /** Re-assembles the whole presentation in the current clean style (see restyle in store.ts). */
   | { type: "restyle" }
   /** Redraw the current page with the next layout that can show the same words. */
@@ -401,6 +404,18 @@ export function reducer(state: EditorState, action: Action): EditorState {
       return commit(state, applyTheme(state.doc, action.theme));
     case "apply-motif":
       return commit(state, applyMotif(state.doc, action.motif), { selectedId: null });
+    case "decoration": {
+      const theme = getTheme(state.doc.settings?.theme);
+      const colors = state.doc.settings?.colors;
+      const color = colors?.accent ?? theme.palette.accent;
+      const color2 = colors?.accent2 ?? theme.palette.accent2;
+      const pages = state.doc.pages.map((p) => {
+        // Cover-like pages (the theme's cover colour) keep their own composition.
+        if (p.background.toLowerCase() === theme.palette.coverBg.toLowerCase()) return p;
+        return { ...p, decoration: action.style === "nessuna" ? undefined : { style: action.style, color, color2 } };
+      });
+      return commit(state, { ...state.doc, pages });
+    }
     case "restyle":
       return commit(state, restyle(state.doc), { selectedId: null });
     case "look-3d":
