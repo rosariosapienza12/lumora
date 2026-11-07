@@ -39,3 +39,13 @@ describe("one at a time", () => {
     expect(documentSchema.safeParse({ version: 1, pages: [page] }).success).toBe(true);
   });
 });
+
+describe("live polls", () => {
+  const poll = (options: string[]) => ({ id: "p1", type: "poll", x: 0, y: 0, w: 800, h: 400, rotation: 0, opacity: 1, hidden: false, locked: false, animation: { enter: "none", emphasis: "none", duration: 0.6, delay: 0 }, interaction: null, question: "Pizza o pasta?", options, fill: "#5b3df5", color: "#111111" });
+  const doc = (options: string[]) => ({ version: 1, pages: [{ id: "a", name: "A", background: "#ffffff", transition: "fade", elements: [poll(options)] }] });
+  it("accepts 2 to 6 answers", () => {
+    expect(documentSchema.safeParse(doc(["Pizza", "Pasta"])).success).toBe(true);
+    expect(documentSchema.safeParse(doc(["Solo una"])).success).toBe(false);
+    expect(documentSchema.safeParse(doc(Array(7).fill("x"))).success).toBe(false);
+  });
+});

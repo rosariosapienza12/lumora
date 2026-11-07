@@ -35,7 +35,7 @@ export default async function PublicPresentationPage({ params }: PageProps<"/p/[
     <main className="flex h-screen flex-col bg-[#0f0d22]">
       <h1 className="sr-only">{p.title}</h1>
       <div className="min-h-0 flex-1">
-        <Player doc={p.doc} />
+        <Player doc={p.doc} slug={slug} />
       </div>
       <div className="flex justify-end px-4 pb-2 text-white/70">
         <Logo className="text-sm" />

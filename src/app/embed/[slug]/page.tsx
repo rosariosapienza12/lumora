@@ -28,7 +28,7 @@ export default async function EmbedPage({ params }: PageProps<"/embed/[slug]">) 
 
   return (
     <main className="h-screen">
-      <Player doc={p.doc} />
+      <Player doc={p.doc} slug={slug} />
     </main>
   );
 }

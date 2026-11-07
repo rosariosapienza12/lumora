@@ -6,6 +6,7 @@ import type { Element, PresentationDoc } from "@/lib/editor/schema";
 import { ElementBody, elementBox, pageBackground, SHADOW } from "@/components/slide/element-view";
 import { FitStage } from "@/components/slide/fit-stage";
 import { buildSteps, morphMatches } from "@/lib/editor/effects";
+import { PollSlug } from "@/components/slide/poll-view";
 import { emphasisLoop, enterFrom, enterTo, pageVariants } from "./motion-presets";
 
 type Popup = { title: string; body: string };
@@ -26,6 +27,7 @@ export function Player({
   onClose,
   globalKeys = true,
   presenter = false,
+  slug,
 }: {
   doc: PresentationDoc;
   startIndex?: number;
@@ -34,6 +36,8 @@ export function Player({
   globalKeys?: boolean;
   /** Presenter mode: speaker notes, next page and a timer (only for the author, never in public views). */
   presenter?: boolean;
+  /** Public slug when the presentation is published: live polls use it for the voting link. */
+  slug?: string | null;
 }) {
   // The page shown, the direction of travel and the page we came from (for the Morph transition).
   const [[index, direction, from], setPage] = useState<[number, number, number | null]>([Math.min(startIndex, doc.pages.length - 1), 1, null]);
@@ -151,6 +155,7 @@ export function Player({
   const variants = pageVariants[page.transition];
 
   return (
+    <PollSlug.Provider value={slug ?? null}>
     <MotionConfig reducedMotion="user">
       <div ref={rootRef} className="relative flex h-full w-full flex-col bg-[#0f0d22]">
         <div
@@ -331,6 +336,7 @@ export function Player({
         </div>
       </div>
     </MotionConfig>
+    </PollSlug.Provider>
   );
 }
 

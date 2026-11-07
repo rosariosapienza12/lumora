@@ -149,3 +149,40 @@ export function ChartControls({ el, set }: { el: Chart; set: (p: Partial<Chart>)
     </div>
   );
 }
+
+type PollEl = Extract<Element, { type: "poll" }>;
+
+/** Question and answers of a live poll (2 to 6 answers). */
+export function PollControls({ el, set }: { el: PollEl; set: (p: Partial<PollEl>) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="flex flex-col gap-1 text-xs font-medium text-ink-soft">
+        Domanda
+        <input value={el.question} maxLength={160} onChange={(e) => set({ question: e.target.value })} className={input} />
+      </label>
+      <span className="text-xs font-medium text-ink-soft">Risposte</span>
+      {el.options.map((o, i) => (
+        <div key={i} className="flex gap-1">
+          <input aria-label={`Risposta ${i + 1}`} value={o} maxLength={60} onChange={(e) => set({ options: el.options.map((x, j) => (j === i ? e.target.value : x)) })} className={input} />
+          <button aria-label={`Togli la risposta ${i + 1}`} disabled={el.options.length <= 2} onClick={() => set({ options: el.options.filter((_, j) => j !== i) })} className="rounded px-2 text-ink-soft hover:text-danger disabled:opacity-30">
+            ×
+          </button>
+        </div>
+      ))}
+      <button disabled={el.options.length >= 6} onClick={() => set({ options: [...el.options, `Risposta ${el.options.length + 1}`] })} className={chip}>
+        + Risposta
+      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1 text-xs font-medium text-ink-soft">
+          Colore delle barre
+          <input type="color" value={el.fill} onChange={(e) => set({ fill: e.target.value })} className="h-8 w-full cursor-pointer rounded-lg border border-line bg-paper" />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-ink-soft">
+          Colore del testo
+          <input type="color" value={el.color} onChange={(e) => set({ color: e.target.value })} className="h-8 w-full cursor-pointer rounded-lg border border-line bg-paper" />
+        </label>
+      </div>
+      <p className="text-xs text-ink-soft">In presentazione appare un QR code: il pubblico vota dal telefono, senza account, e le barre si aggiornano dal vivo. Serve che la presentazione sia pubblicata (Condividi).</p>
+    </div>
+  );
+}

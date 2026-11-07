@@ -30,6 +30,7 @@ const ADDABLE: { kind: ElementType; label: string; icon: string }[] = [
   { kind: "image", label: "Immagine", icon: "▣" },
   { kind: "button", label: "Pulsante", icon: "◉" },
   { kind: "hotspot", label: "Hotspot", icon: "✦" },
+  { kind: "poll", label: "Sondaggio", icon: "▤" },
 ];
 
 export function Editor(props: {
@@ -51,6 +52,7 @@ export function Editor(props: {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [liveSlug, setLiveSlug] = useState(props.initialSlug);
   const [sharing, setSharing] = useState(false);
   const firstRender = useRef(true);
   const clipboard = useRef<Element | null>(null);
@@ -364,7 +366,7 @@ export function Editor(props: {
       <AnimatePresence>
         {previewing && (
           <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Player doc={state.doc} startIndex={pageIndex} onClose={() => setPreviewing(false)} presenter />
+            <Player doc={state.doc} startIndex={pageIndex} onClose={() => setPreviewing(false)} presenter slug={liveSlug} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -389,7 +391,8 @@ export function Editor(props: {
             appUrl={props.appUrl}
             emailVerified={props.emailVerified}
             guest={props.guest}
-            initialSlug={props.initialSlug}
+            initialSlug={liveSlug}
+            onSlug={setLiveSlug}
             initialHasPassword={props.initialHasPassword}
             onClose={() => setSharing(false)}
           />
@@ -407,6 +410,8 @@ function ShareDialog(props: {
   initialSlug: string | null;
   initialHasPassword: boolean;
   onClose: () => void;
+  /** Tells the editor the public slug changed (live polls in the presentation need it). */
+  onSlug?: (slug: string | null) => void;
 }) {
   const [slug, setSlug] = useState(props.initialSlug);
   const [hasPassword, setHasPassword] = useState(props.initialHasPassword);
@@ -435,6 +440,7 @@ function ShareDialog(props: {
       if (!res.ok) return setError(res.error);
       setError(null);
       setSlug(res.slug);
+      props.onSlug?.(res.slug);
       setHasPassword(res.hasPassword);
       setPassword("");
     });
@@ -444,6 +450,7 @@ function ShareDialog(props: {
       const res = await unpublishAction(props.id);
       if (!res.ok) return setError(res.error);
       setSlug(null);
+      props.onSlug?.(null);
       setHasPassword(false);
     });
 

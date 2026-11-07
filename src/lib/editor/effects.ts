@@ -32,6 +32,8 @@ function morphKey(e: Element): string {
       return `b:${e.label}`;
     case "hotspot":
       return `h:${e.label}`;
+    case "poll":
+      return `p:${e.question}`;
   }
 }
 

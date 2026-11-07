@@ -415,6 +415,8 @@ export function applyTheme(doc: PresentationDoc, toId: ThemeId): PresentationDoc
           return e.stroke ? { ...e, stroke: fill(e.stroke) } : e;
         case "icon":
           return { ...e, color: fill(e.color) };
+        case "poll":
+          return { ...e, fill: fill(e.fill), color: ink(e.color), ...(e.font ? { font: font(e.font) } : {}) };
         case "chart":
           return {
             ...e,
