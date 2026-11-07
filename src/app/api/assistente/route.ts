@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
 import { brainAnswer } from "@/lib/assistant/brain";
-import { provider, streamChat } from "@/lib/ai/client";
+import { keyDiagnosis, provider, streamChat } from "@/lib/ai/client";
 
 const MODEL = "claude-opus-5-5";
 /** AI answers per day for the whole site; beyond it Zib keeps working offline. */
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   const aiAllowed = ai !== null && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
   if (!aiAllowed) {
     const answer = brainAnswer(messages);
-    return textStream(async (write) => write(answer), ai ? "offline:budget" : "offline:no-key");
+    return textStream(async (write) => write(answer), ai ? "offline:budget" : `offline:no-key; ${keyDiagnosis()}`);
   }
 
   if (ai.name !== "anthropic") {

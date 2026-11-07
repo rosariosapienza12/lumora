@@ -183,3 +183,22 @@ export async function chatJson<T extends z.ZodTypeAny>(o: { system: string; prom
     return null;
   }
 }
+
+/**
+ * Which AI key variables reach the site, and whether their format is valid,
+ * without ever revealing a value: "GeminiAPIKey=invalid(len 41)", "none"…
+ * Shown in the X-Zib-Mode header when Zib is offline, to fix a deploy.
+ */
+export function keyDiagnosis(): string {
+  const names = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GeminiAPIKey", "GROQ_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"];
+  const seen = names.flatMap((n) => {
+    const raw = process.env[n];
+    if (raw === undefined) return [];
+    const v = raw.trim().replace(/^["']|["']$/g, "");
+    if (!v) return [`${n}=empty`];
+    return [`${n}=${/^[A-Za-z0-9_-]{20,}$/.test(v) ? "ok" : `invalid(len ${v.length})`}`];
+  });
+  // Variables with similar names (a typo, spaces or a different case), names only.
+  const similar = Object.keys(process.env).filter((k) => /gemini|google.*key|api.?key/i.test(k) && !names.includes(k)).map((k) => `other:${k.replace(/[^\w-]/g, "?").slice(0, 40)}`);
+  return [...seen, ...similar].join(",") || "none";
+}
