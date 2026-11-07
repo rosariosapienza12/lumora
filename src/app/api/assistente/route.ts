@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
 import { brainAnswer } from "@/lib/assistant/brain";
+import { provider, streamChat } from "@/lib/ai/client";
 
 const MODEL = "claude-opus-5-5";
 /** AI answers per day for the whole site; beyond it Zib keeps working offline. */
@@ -71,10 +72,30 @@ export async function POST(request: Request) {
 
   // Without a key, or once the site-wide daily budget of AI answers is used up (so many IPs together
   // cannot run up the bill), the assistant answers with its free on-board brain.
-  const aiAllowed = Boolean(env.ANTHROPIC_API_KEY) && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
+  const ai = provider();
+  const aiAllowed = ai !== null && (await rateLimit("assistant:ai:global", AI_DAILY_BUDGET, 24 * 60 * 60));
   if (!aiAllowed) {
     const answer = brainAnswer(messages);
     return textStream(async (write) => write(answer));
+  }
+
+  if (ai.name !== "anthropic") {
+    // A free model (Gemini, Groq, OpenRouter). If it is busy or over its free quota,
+    // Zib answers with its on-board brain instead of an error.
+    return textStream(async (write) => {
+      let wrote = false;
+      try {
+        for await (const chunk of streamChat({ system: `${SYSTEM_PROMPT}
+
+${pageContext(page)}`, messages, maxTokens: 2048 })) {
+          wrote = true;
+          write(chunk);
+        }
+      } catch (err) {
+        console.error("free ai failed", err instanceof Error ? err.message : err);
+      }
+      if (!wrote) write(brainAnswer(messages));
+    });
   }
 
   client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });

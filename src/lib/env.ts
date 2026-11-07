@@ -16,6 +16,16 @@ export const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // Optional: without it the assistant uses its on-board brain. Read only on the server.
     ANTHROPIC_API_KEY: optional(z.string().regex(/^sk-ant-[A-Za-z0-9_-]{20,}$/, "ANTHROPIC_API_KEY is not a valid Anthropic key")),
+    // Free AI for Zib (any one is enough; see src/lib/ai/client.ts):
+    // Google Gemini API free tier (https://aistudio.google.com/apikey),
+    GEMINI_API_KEY: optional(z.string().regex(/^[A-Za-z0-9_-]{20,}$/, "GEMINI_API_KEY is not a valid key")),
+    // Groq free tier (https://console.groq.com/keys),
+    GROQ_API_KEY: optional(z.string().regex(/^gsk_[A-Za-z0-9]{20,}$/, "GROQ_API_KEY is not a valid Groq key")),
+    // OpenRouter, models marked ":free" (https://openrouter.ai/keys).
+    OPENROUTER_API_KEY: optional(z.string().regex(/^sk-or-[A-Za-z0-9_-]{20,}$/, "OPENROUTER_API_KEY is not a valid OpenRouter key")),
+    // Optional: force one provider, or another model of it.
+    AI_PROVIDER: optional(z.enum(["gemini", "groq", "openrouter", "anthropic"])),
+    AI_MODEL: optional(z.string().regex(/^[\w.:/-]{2,100}$/, "AI_MODEL is not a valid model name")),
     // Transactional email through Resend (https://resend.com). Optional: without it, people can
     // still sign up, sign in and use the editor, but cannot confirm their email (so cannot
     // publish) or reset a forgotten password.
