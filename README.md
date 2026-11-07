@@ -99,7 +99,7 @@ The site runs at http://localhost:3000. To generate `ENCRYPTION_KEY`:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-`ANTHROPIC_API_KEY` is optional: without it, Zib answers using the built-in guide.
+Zib's AI is optional and can be **free**: set `GEMINI_API_KEY` (Google AI Studio free tier), `GROQ_API_KEY` (Groq free tier) or `OPENROUTER_API_KEY` (models ending in `:free`). They are reached through the OpenAI-compatible chat API with plain `fetch` (`src/lib/ai/client.ts`); `ANTHROPIC_API_KEY` also works. Without any key, or when a free quota runs out, Zib answers with its built-in guide.
 
 ## Deploying for free (Vercel + Neon)
 
@@ -126,7 +126,7 @@ Optional extras:
   to send confirmation and password-reset emails. Without them, people can still sign
   up, sign in, use the editor and try Lumora as a guest, but publishing needs a
   confirmed email.
-- `ANTHROPIC_API_KEY` for Zib's AI answers. Without it, Zib uses its built-in guide.
+- `GEMINI_API_KEY` (free, recommended), `GROQ_API_KEY` or `OPENROUTER_API_KEY` for Zib's AI answers and full presentations; `ANTHROPIC_API_KEY` also works. Without any, Zib uses its built-in guide.
 - `CONTACT_EMAIL`: the address shown on the privacy and terms pages for data requests.
 
 `TRUSTED_PROXY_HOPS` stays `0` on Vercel, which replaces `X-Forwarded-For` with the

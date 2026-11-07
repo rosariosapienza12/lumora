@@ -1,7 +1,6 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { env } from "@/lib/env";
+import { aiAvailable, chatJson } from "@/lib/ai/client";
 import { rateLimit } from "@/lib/rate-limit";
 import { pageContentSchema } from "@/lib/editor/content";
 import { buildLayout, isLayoutId, LAYOUT_IDS, type LayoutId } from "@/lib/editor/layouts";
@@ -23,7 +22,6 @@ import { applyLook3D } from "@/lib/three/styles";
  * invalid makes the caller fall back to the plain outline.
  */
 
-const MODEL = "claude-opus-5-5";
 /** AI-written presentations per day for the whole site, on top of each user's own limit. */
 const DAILY_BUDGET = 150;
 
@@ -83,7 +81,9 @@ Contenuti:
 - Informazioni vere, precise e utili: fatti, date, nomi, esempi concreti, spiegazioni chiare. Mai frasi segnaposto come "scrivi qui".
 - Numeri e date solo se sei sicuro. Se un dato è incerto, preferisci una frase qualitativa. Nelle note del relatore indica le fonti da controllare (enti, libri, siti ufficiali).
 - Frasi brevi e leggibili da lontano: rispetta le lunghezze dei campi. Niente markdown, niente lineette lunghe.
-- Le note del relatore (notes) sono il discorso da dire su quella pagina: 2-5 frasi.
+- Le note del relatore (notes) sono il discorso da dire su quella pagina: 3-6 frasi con dettagli in più rispetto alla slide.
+- Completezza: niente frasi generiche o banali ("è molto importante", "ci sono tanti aspetti"). Ogni pagina porta informazioni specifiche: nomi, date, luoghi, cause ed effetti, esempi, cifre. Body di 3-5 frasi piene; elenchi con 4-6 punti, ciascuno con un testo di 1-2 frasi informative; linee del tempo con date vere; numeri con il loro contesto; quiz con spiegazione.
+- Usa i layout più adatti al contenuto: "grafico" quando ci sono dati confrontabili (con valori veri), "linea-tempo" per le date, "confronto" per due posizioni, "processo" per le fasi.
 - Le domande dei quiz hanno una risposta giusta verificabile.
 
 Aspetto, scelto per l'argomento:
@@ -98,49 +98,29 @@ ${LAYOUT_IDS.map((id) => `- ${id}: ${LAYOUT_GUIDE[id]}`).join("\n")}
 Varia i layout: preferisci quelli visivi (processo, mappa, confronto, percentuale, numeri, linea-tempo, icone, piramide) ai muri di testo e non ripetere lo stesso layout più di due volte. Usa foto-piena, immagine-testo, mosaico ed esplora solo se sono richieste le foto.`;
 }
 
-const tool = {
-  name: "crea_presentazione",
-  description: "Crea la presentazione completa: tema, disegni, parole per le foto e il contenuto di ogni pagina.",
-  input_schema: z.toJSONSchema(generatedDeckSchema, { target: "draft-7" }) as Anthropic.Tool.InputSchema,
-};
-
-let client: Anthropic | null = null;
-
 /** Is AI writing available right now for this user? Counts one use against both limits. */
 export async function canGenerate(userId: string) {
-  if (!env.ANTHROPIC_API_KEY) return false;
+  if (!aiAvailable()) return false;
   return (await rateLimit(`zib:create:${userId}`, 10, 60 * 60)) && (await rateLimit("zib:create:global", DAILY_BUDGET, 24 * 60 * 60));
 }
 
-/** Asks the model for a complete presentation. Returns null when anything goes wrong. */
+/** Asks the model (free or not, see lib/ai/client.ts) for a complete presentation. Returns null when anything goes wrong. */
 export async function generateDeck(request: { topic: string; outline?: DeckSpec; photos: boolean }): Promise<GeneratedDeck | null> {
-  if (!env.ANTHROPIC_API_KEY) return null;
-  client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  if (!aiAvailable()) return null;
   const outline = request.outline
-    ? `\nSegui questa scaletta (puoi migliorare i titoli, non cambiare l'ordine): ${request.outline.pages.map((p, i) => `${i + 1}. ${p.layout}: ${p.heading}`).join("; ")}. Tema proposto: ${request.outline.theme}.`
+    ? `
+Segui questa scaletta (puoi migliorare i titoli, non cambiare l'ordine): ${request.outline.pages.map((p, i) => `${i + 1}. ${p.layout}: ${p.heading}`).join("; ")}. Tema proposto: ${request.outline.theme}.`
     : "";
-  try {
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 12000,
-      system: systemPrompt(),
-      tools: [tool],
-      tool_choice: { type: "tool", name: tool.name },
-      messages: [
-        {
-          role: "user",
-          content: `Argomento: ${request.topic.slice(0, 200)}\nFoto: ${request.photos ? "sì, usa 2-4 pagine con foto e indica photoQuery" : "no, nessun layout con foto"}.${outline}\nScrivi 7-11 pagine: copertina all'inizio, chiusura o contatti alla fine.`,
-        },
-      ],
-    });
-    const call = res.content.find((b) => b.type === "tool_use");
-    if (!call || call.type !== "tool_use") return null;
-    const parsed = generatedDeckSchema.safeParse(call.input);
-    return parsed.success ? parsed.data : null;
-  } catch (err) {
-    console.error("zib generation failed", err instanceof Error ? err.message : err);
-    return null;
-  }
+  return chatJson({
+    system: systemPrompt(),
+    prompt: `Argomento: ${request.topic.slice(0, 200)}
+Foto: ${request.photos ? "sì, usa 2-4 pagine con foto e indica photoQuery" : "no, nessun layout con foto"}.${outline}
+Scrivi 8-12 pagine piene di contenuto vero e specifico: copertina all'inizio, chiusura o contatti alla fine. Ogni pagina deve insegnare qualcosa di concreto.`,
+    maxTokens: 12000,
+    tool: "crea_presentazione",
+    description: "Crea la presentazione completa: tema, disegni, parole per le foto e il contenuto di ogni pagina.",
+    schema: generatedDeckSchema,
+  });
 }
 
 /** Builds the document from Zib's answer, dropping unknown layouts and drawings. Null if nothing valid remains. */
