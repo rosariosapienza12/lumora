@@ -136,6 +136,12 @@ export function buildTemplate(id: TemplateId, title: string, themeId: ThemeId = 
           highlight: "Se due cose sono importanti, una è di troppo.",
         }),
         L("percentuale", { heading: "Il numero che conta", stats: [{ value: "72%", label: "di tempo risparmiato", text: "Il risultato principale, da solo sulla pagina." }], highlight: "Fonte: test con i primi clienti" }),
+        L("grafico", {
+          heading: "La crescita",
+          chart: { kind: "colonne", labels: ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu"], series: [{ name: "Clienti attivi", values: [40, 65, 110, 170, 260, 390] }] },
+          highlight: "Clienti quasi decuplicati in sei mesi, senza pubblicità.",
+          subtitle: "Dati interni, primo semestre. Sostituiscili con i tuoi.",
+        }),
         L("processo", {
           heading: "Come funziona",
           items: [
@@ -190,6 +196,12 @@ export function buildTemplate(id: TemplateId, title: string, themeId: ThemeId = 
             { value: "120", label: "risposte raccolte", text: "Il campione del sondaggio" },
             { value: "2", label: "anni confrontati", text: "Il periodo osservato" },
           ],
+        }),
+        L("grafico", {
+          heading: "Come si dividono le risposte",
+          chart: { kind: "ciambella", labels: ["Molto d'accordo", "D'accordo", "Incerti", "Contrari"], series: [{ name: "Risposte", values: [38, 26, 21, 15] }], unit: "%" },
+          highlight: "Quasi due su tre sono d'accordo.",
+          subtitle: "Fonte: sondaggio su 120 persone. Scrivi sempre la tua fonte.",
         }),
         L("percentuale", { heading: "Il dato principale", stats: [{ value: "64%", label: "il risultato più importante", text: "Spiega cosa significa, senza esagerarlo." }], highlight: "Fonte: scrivi sempre da dove viene il dato" }),
         L("confronto", { heading: "Prima e dopo", items: [{ title: "Prima", text: "Primo punto\nSecondo punto\nTerzo punto" }, { title: "Dopo", text: "Primo punto\nSecondo punto\nTerzo punto" }] }),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { chartContentSchema } from "./chart";
 
 /**
  * The words of a page, apart from how it is drawn. Zib (with AI) writes this
@@ -26,6 +27,8 @@ export const pageContentSchema = z.object({
   stats: z.array(statSchema).max(4).optional(),
   quote: z.object({ text: line(280), author: line(80) }).optional(),
   question: z.object({ text: line(200), right: line(80), wrong: line(80), explanation: line(240).optional() }).optional(),
+  /** The numbers of the "grafico" layout. */
+  chart: chartContentSchema.optional(),
 });
 
 export type PageContent = z.infer<typeof pageContentSchema>;

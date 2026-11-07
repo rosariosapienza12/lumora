@@ -64,6 +64,7 @@ const LAYOUT_GUIDE: Record<LayoutId, string> = {
   elenco: "heading, items[4-6] {title, text}",
   numeri: "heading, stats[2-3] {value breve, label, text}",
   percentuale: "heading, stats[0] {value come 72%, label, text}, highlight = fonte del dato",
+  grafico: "heading, chart {kind: colonne|barre|linea|area|torta|ciambella, labels[2-8], series[1-3] {name, values: numeri veri}, unit opzionale come % o €}, highlight (la conclusione in una frase), subtitle (la fonte)",
   "linea-tempo": "heading, items[4-5] {title = data o periodo, text}",
   processo: "heading, items[3-5] {title, text}",
   piramide: "heading, items[3] {title, text} dalla cima alla base",

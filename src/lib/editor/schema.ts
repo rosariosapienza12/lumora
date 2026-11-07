@@ -4,6 +4,8 @@ import { SHAPE_IDS, SVG_SHAPE_IDS, type SvgShape } from "./shapes";
 import { MOTIF_IDS } from "./motif-ids";
 import { pageContentSchema } from "./content";
 import { FORMS_3D, MATERIALS_3D, RELIEFS } from "../three/ids";
+import { ICON_IDS, type IconId } from "./icons";
+import { chartDataSchema } from "./chart";
 
 /**
  * The presentation document. Everything a user can put in a presentation is
@@ -251,7 +253,28 @@ const hotspotEl = z.object({
   label: plainText(3),
 });
 
-export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl, object3dEl]);
+/** A line icon from the icon library (icons.ts), in any colour. */
+const iconEl = z.object({
+  ...base,
+  type: z.literal("icon"),
+  icon: z.enum(ICON_IDS as [IconId, ...IconId[]]),
+  color,
+  strokeWidth: z.number().min(0.5).max(4).optional(),
+});
+
+/** A chart drawn from the numbers people type in (chart.ts). */
+const chartEl = z.object({
+  ...base,
+  type: z.literal("chart"),
+  data: chartDataSchema,
+  /** Labels, values and axis text. */
+  color,
+  /** Grid lines and axis. */
+  gridColor: color.optional(),
+  font: z.enum(FONTS).optional(),
+});
+
+export const element = z.discriminatedUnion("type", [textEl, shapeEl, imageEl, buttonEl, hotspotEl, object3dEl, iconEl, chartEl]);
 
 export const page = z.object({
   id,

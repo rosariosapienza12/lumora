@@ -14,6 +14,8 @@ import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { ShapeMenu } from "./shape-menu";
 import { Object3DMenu } from "./object3d-panel";
+import { IconGlyph, IconMenu } from "./icon-menu";
+import { chartElement } from "@/lib/editor/layouts";
 import { getTheme, needsRestyle } from "@/lib/editor/themes";
 import { style3D } from "@/lib/three/styles";
 import { PhotoSearch } from "./photo-search";
@@ -271,6 +273,26 @@ export function Editor(props: {
               </button>
               ),
             )}
+            <IconMenu
+              onPick={(icon) => {
+                const t = getTheme(state.doc.settings?.theme);
+                dispatch({ type: "add-elements", elements: [{ id: "new", type: "icon", x: 720, y: 370, w: 160, h: 160, rotation: 0, opacity: 1, hidden: false, locked: false, animation: { enter: "pop", emphasis: "none", duration: 0.5, delay: 0 }, interaction: null, icon, color: state.doc.settings?.colors?.accent ?? t.palette.accent, strokeWidth: 2 }] });
+              }}
+            />
+            <button
+              onClick={() => {
+                const t = getTheme(state.doc.settings?.theme);
+                const c = state.doc.settings?.colors;
+                dispatch({
+                  type: "add-elements",
+                  elements: [chartElement(t, c)],
+                });
+              }}
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium hover:bg-paper"
+            >
+              <IconGlyph icon="bar-chart" className="h-4 w-4 text-violet" />
+              Grafico
+            </button>
             <Object3DMenu
               palette={(() => {
                 const t = getTheme(state.doc.settings?.theme ?? "notte");

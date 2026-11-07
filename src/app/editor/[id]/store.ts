@@ -113,6 +113,25 @@ function createElement(kind: ElementType, src?: string, alt = "", shape: ShapeId
         animation: { enter: "pop", emphasis: "none", duration: 0.5, delay: 0 },
         interaction: { trigger: "click", action: { kind: "popup", title: "Lo sapevi?", body: "Scrivi qui il contenuto che appare al clic." } },
       };
+    case "icon":
+      return { ...baseEl(), type: "icon", x: cx - 80, y: cy - 80, w: 160, h: 160, icon: "lightbulb", color: "#5b3df5", strokeWidth: 2 };
+    case "chart":
+      return {
+        ...baseEl(),
+        type: "chart",
+        x: cx - 420,
+        y: cy - 250,
+        w: 840,
+        h: 500,
+        color: "#1d1a3a",
+        gridColor: "#d9d3ff",
+        data: {
+          kind: "colonne",
+          labels: ["2023", "2024", "2025", "2026"],
+          series: [{ name: "Vendite", values: [120, 180, 260, 340], color: "#5b3df5" }],
+          showValues: true,
+        },
+      };
     case "object3d":
       return {
         ...baseEl(),

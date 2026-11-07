@@ -1,9 +1,10 @@
 "use client";
 
 import { isMotifId, MOTIF_IDS, MOTIFS } from "@/lib/editor/motifs";
-import { isSvgShape, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
+import { isSvgShape, MENU_SHAPES, SHAPE_IDS, SHAPE_LABELS } from "@/lib/editor/shapes";
 import { RELIEF_NAMES, RELIEFS } from "@/lib/three/ids";
 import { Look3DControls, Object3DControls } from "./object3d-panel";
+import { ChartControls, IconControls } from "./chart-panel";
 import { ShapeIcon } from "@/components/slide/shape-icon";
 import { ThemePicker } from "@/components/theme-picker";
 import { DEFAULT_THEME, getTheme, PATTERNS, type Pattern } from "@/lib/editor/themes";
@@ -280,6 +281,8 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
           </Row>
         )}
         {el.type === "object3d" && <Object3DControls el={el} set={set} />}
+        {el.type === "icon" && <IconControls el={el} set={set} />}
+        {el.type === "chart" && <ChartControls el={el} set={set} />}
         {el.type === "shape" && !el.photoSlot && isSvgShape(el.shape) && (
           <Row label="Rilievo 3D">
             <div className="flex flex-wrap gap-1.5">
@@ -346,7 +349,7 @@ export function Inspector({ doc, page, el, dispatch, onFindPhoto, onUploadPhoto 
             <div className="col-span-2">
               <span className="mb-1 block text-xs font-medium text-ink-soft">Forma</span>
               <div className="grid grid-cols-7 gap-1" role="radiogroup" aria-label="Forma">
-                {SHAPE_IDS.map((shape) => (
+                {SHAPE_IDS.filter((sh) => MENU_SHAPES.includes(sh) || sh === el.shape).map((shape) => (
                   <button
                     key={shape}
                     role="radio"
