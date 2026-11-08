@@ -116,6 +116,19 @@ export function NewPresentation() {
                 </>
               ) : (
                 <>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="template-topic" className="text-sm font-semibold">
+                      Argomento <span className="font-normal text-ink-soft">(facoltativo)</span>
+                    </label>
+                    <input
+                      id="template-topic"
+                      name="topic"
+                      maxLength={120}
+                      placeholder="Per esempio: il riciclo, la mia startup, la Sicilia"
+                      className="rounded-xl border border-line bg-paper px-3.5 py-2.5 outline-none focus:border-violet"
+                    />
+                    <p className="text-xs text-ink-soft">Se lo scrivi, Zib riempie il modello con contenuti veri su quell&apos;argomento, seguendo le sue pagine e il suo tema.</p>
+                  </div>
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Tema</h3>
                     <ThemePicker name="theme" value={theme} onChange={setTheme} />

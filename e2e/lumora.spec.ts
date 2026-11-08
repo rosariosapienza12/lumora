@@ -74,3 +74,14 @@ test("Zib's preview with photos opens (the credits page is not in the outline)",
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Colosseo" })).toBeVisible();
 });
+
+test("a template with a topic is titled with the topic", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "Nuova presentazione" }).click();
+  await page.getByRole("tab", { name: "Da un modello" }).click();
+  await page.getByLabel(/Argomento/).fill("Le Alpi");
+  await page.getByText("Pitch da keynote", { exact: true }).first().click();
+  await page.getByRole("button", { name: "Crea presentazione" }).click();
+  await expect(page).toHaveURL(/\/editor\//, { timeout: 60_000 });
+  await expect(page.getByLabel("Titolo della presentazione")).toHaveValue("Le Alpi");
+});

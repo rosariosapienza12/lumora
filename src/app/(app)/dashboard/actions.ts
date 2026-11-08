@@ -10,6 +10,8 @@ import { requireUser, touchSession } from "@/lib/auth/session";
 import { countAll, docBytes, getOwnedPresentation, MAX_PRESENTATIONS, STORAGE_QUOTA_BYTES, storageUsed } from "@/lib/presentations";
 import { buildTemplate, isTemplateId, TEMPLATES } from "@/lib/editor/templates";
 import { createDeckDocument } from "@/lib/assistant/create";
+import type { DeckSpec } from "@/lib/editor/deck";
+import { isLayoutId } from "@/lib/editor/layouts";
 import type { Prisma } from "@/generated/prisma/client";
 
 const idSchema = z.string().regex(/^[a-z0-9]{20,32}$/);
@@ -36,10 +38,25 @@ export async function createPresentationAction(formData: FormData) {
   await touchSession();
   const template = formData.get("template");
   const id = isTemplateId(template) ? template : "vuota";
-  const title = id === "vuota" ? "Presentazione senza titolo" : (TEMPLATES.find((t) => t.id === id)?.name ?? "Presentazione");
   const theme = formData.get("theme");
-  const content = buildTemplate(id, title, isThemeId(theme) ? theme : DEFAULT_THEME);
+  const themeId = isThemeId(theme) ? theme : DEFAULT_THEME;
+  // Optional topic: Zib writes real content following the template's pages and theme.
+  const topic = titleSchema.safeParse(formData.get("topic"));
+  const named = topic.success && id !== "vuota";
+  const title = named ? topic.data : id === "vuota" ? (topic.success ? topic.data : "Presentazione senza titolo") : (TEMPLATES.find((t) => t.id === id)?.name ?? "Presentazione");
+  let content = buildTemplate(id, title, themeId);
   if (!(await canAdd(user.id, docBytes(content)))) throw new Error("Limit reached");
+
+  if (named) {
+    const outline: DeckSpec = {
+      title,
+      theme: themeId,
+      pages: content.pages.flatMap((pg) => (pg.source && isLayoutId(pg.source.layout) ? [{ layout: pg.source.layout, heading: (pg.source.content.heading ?? pg.name).slice(0, 90) }] : [])).slice(0, 12),
+    };
+    const written = await createDeckDocument(user.id, { topic: topic.data, outline, photos: false });
+    // Without AI (or if it fails) the template keeps its example words, with the topic as title.
+    if (written.written) content = written.doc;
+  }
 
   const p = await db.presentation.create({
     data: { ownerId: user.id, title, content: content as Prisma.InputJsonValue },
