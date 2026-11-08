@@ -74,13 +74,21 @@ const BACKUP_MODELS: Record<OpenAiProvider["name"], string[]> = {
 /** Calls the provider, moving on to a backup model on 404 (retired model) or 429/503 (busy). */
 async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown>) {
   const models = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
+  // Gemini "thinks" before answering, which adds seconds and is not needed to write slides:
+  // ask for the least thinking the model accepts, falling back if it refuses the setting.
+  const efforts: (string | undefined)[] = p.name === "gemini" ? ["none", "low", undefined] : [undefined];
   let last: unknown;
   for (const model of models) {
-    try {
-      return await openAi({ ...p, model }, body);
-    } catch (err) {
-      last = err;
-      if (!/ (404|429|503|400): /.test(String(err instanceof Error ? err.message : err))) break;
+    for (const effort of efforts) {
+      try {
+        return await openAi({ ...p, model }, effort ? { ...body, reasoning_effort: effort } : body);
+      } catch (err) {
+        last = err;
+        const msg = String(err instanceof Error ? err.message : err);
+        if (/ 400: /.test(msg) && effort) continue; // this model wants another thinking setting
+        if (!/ (404|429|503|400): /.test(msg)) throw err;
+        break; // next model
+      }
     }
   }
   throw last;

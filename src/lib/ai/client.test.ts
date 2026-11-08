@@ -69,3 +69,16 @@ describe("key formats", () => {
     expect(/^[A-Za-z0-9._-]{20,200}$/.test("AQ.Ab8RN6Iexample-key_with.dots1234567890abcdef")).toBe(true);
   });
 });
+
+describe("thinking setting", () => {
+  it("asks Gemini for no thinking, and retries with a lighter setting the model accepts", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("unsupported reasoning_effort", { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { arguments: '{"ok":true}' } }] } }] })));
+    expect(await chatJson({ system: "s", prompt: "p", maxTokens: 5, tool: "t", description: "d", schema: z.object({ ok: z.boolean() }) })).toEqual({ ok: true });
+    const bodies = fetch.mock.calls.map((c) => JSON.parse(String(c[1]?.body)));
+    expect(bodies[0]).toMatchObject({ model: "gemini-flash-latest", reasoning_effort: "none" });
+    expect(bodies[1]).toMatchObject({ model: "gemini-flash-latest", reasoning_effort: "low" });
+  });
+});
