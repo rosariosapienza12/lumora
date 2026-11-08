@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { pageContext, SYSTEM_PROMPT } from "@/lib/assistant/knowledge";
 import { brainAnswer } from "@/lib/assistant/brain";
-import { keyDiagnosis, provider, streamChat } from "@/lib/ai/client";
+import { keyDiagnosis, provider, streamChat, type Trace } from "@/lib/ai/client";
 
 const MODEL = "claude-opus-5-5";
 /** AI answers per day for the whole site; beyond it Zib keeps working offline. */
@@ -83,20 +83,30 @@ export async function POST(request: Request) {
   if (ai.name !== "anthropic") {
     // A free model (Gemini, Groq, OpenRouter). If it is busy or over its free quota,
     // Zib answers with its on-board brain instead of an error.
+    // The first words are awaited before answering, so the response can say which models were
+    // tried and how long each took (X-Zib-Trace), to find slowness without reading server logs.
+    const trace: Trace = [];
+    const t0 = Date.now();
+    const it = streamChat({ system: `${SYSTEM_PROMPT}\n\n${pageContext(page)}`, messages, maxTokens: 2048, trace })[Symbol.asyncIterator]();
+    let first: IteratorResult<string> | null = null;
+    try {
+      first = await it.next();
+    } catch (err) {
+      console.error("free ai failed", err instanceof Error ? err.message : err);
+    }
+    const mode = `ai:${ai.name}; ${trace.join(",") || "no-attempt"}; first ${((Date.now() - t0) / 1000).toFixed(1)}s`;
     return textStream(async (write) => {
-      let wrote = false;
-      try {
-        for await (const chunk of streamChat({ system: `${SYSTEM_PROMPT}
-
-${pageContext(page)}`, messages, maxTokens: 2048 })) {
-          wrote = true;
-          write(chunk);
-        }
-      } catch (err) {
-        console.error("free ai failed", err instanceof Error ? err.message : err);
+      if (!first || first.done) {
+        write(brainAnswer(messages));
+        return;
       }
-      if (!wrote) write(brainAnswer(messages));
-    }, `ai:${ai.name}`);
+      write(first.value);
+      try {
+        for (let n = await it.next(); !n.done; n = await it.next()) write(n.value);
+      } catch (err) {
+        console.error("free ai stream broke", err instanceof Error ? err.message : err);
+      }
+    }, mode);
   }
 
   client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });

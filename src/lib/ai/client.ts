@@ -53,15 +53,34 @@ export const aiAvailable = () => provider() !== null;
 let anthropic: Anthropic | null = null;
 const anthropicClient = (key: string) => (anthropic ??= new Anthropic({ apiKey: key }));
 
-async function openAi(p: OpenAiProvider, body: Record<string, unknown>, signal?: AbortSignal) {
-  const res = await fetch(`${p.base}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}`, ...(p.name === "openrouter" ? { "X-Title": "Lumora" } : {}) },
-    body: JSON.stringify({ model: p.model, ...body }),
-    signal: signal ?? AbortSignal.timeout(90_000),
-  });
-  if (!res.ok) throw new Error(`${p.name} ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res;
+/** Attempts made for one answer: "model:status:seconds", for the X-Zib-Trace header (no secrets). */
+export type Trace = string[];
+
+async function openAi(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace) {
+  // Streams must start within 20 s (then the backup model is tried); whole answers get 90 s.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), body.stream ? 20_000 : 90_000);
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`${p.base}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}`, ...(p.name === "openrouter" ? { "X-Title": "Lumora" } : {}) },
+      body: JSON.stringify({ model: p.model, ...body }),
+      signal: ctrl.signal,
+    });
+    trace?.push(`${p.model}:${res.status}:${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (!res.ok) throw new Error(`${p.name} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return res;
+  } catch (err) {
+    if (ctrl.signal.aborted) {
+      trace?.push(`${p.model}:timeout:${((Date.now() - t0) / 1000).toFixed(1)}s`);
+      throw new Error(`${p.name} 503: no answer in time`);
+    }
+    throw err;
+  } finally {
+    // Once the answer has started, it may take as long as it needs.
+    clearTimeout(timer);
+  }
 }
 
 /** Models tried in turn when the chosen one is unknown or overloaded (a model can be retired). */
@@ -72,7 +91,7 @@ const BACKUP_MODELS: Record<OpenAiProvider["name"], string[]> = {
 };
 
 /** Calls the provider, moving on to a backup model on 404 (retired model) or 429/503 (busy). */
-async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown>) {
+async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace) {
   const models = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
   // Gemini "thinks" before answering, which adds seconds and is not needed to write slides:
   // ask for the least thinking the model accepts, falling back if it refuses the setting.
@@ -83,7 +102,7 @@ async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown
   for (const model of models) {
     for (const effort of efforts) {
       try {
-        return await openAi({ ...p, model }, effort ? { ...body, reasoning_effort: effort } : body);
+        return await openAi({ ...p, model }, effort ? { ...body, reasoning_effort: effort } : body, trace);
       } catch (err) {
         last = err;
         const msg = String(err instanceof Error ? err.message : err);
@@ -97,7 +116,7 @@ async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown
 }
 
 /** Streams an answer, chunk by chunk. */
-export async function* streamChat(o: { system: string; messages: Msg[]; maxTokens: number }): AsyncGenerator<string> {
+export async function* streamChat(o: { system: string; messages: Msg[]; maxTokens: number; trace?: Trace }): AsyncGenerator<string> {
   const p = provider();
   if (!p) return;
   if (p.name === "anthropic") {
@@ -105,7 +124,7 @@ export async function* streamChat(o: { system: string; messages: Msg[]; maxToken
     for await (const ev of stream) if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") yield ev.delta.text;
     return;
   }
-  const res = await openAiWithBackups(p, { stream: true, max_tokens: o.maxTokens, messages: [{ role: "system", content: o.system }, ...o.messages] });
+  const res = await openAiWithBackups(p, { stream: true, max_tokens: o.maxTokens, messages: [{ role: "system", content: o.system }, ...o.messages] }, o.trace);
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buf = "";
