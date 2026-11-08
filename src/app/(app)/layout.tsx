@@ -9,7 +9,7 @@ import { GuestBanner } from "@/components/guest-banner";
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       {/* On phones the links move to a second row, so the header never overflows the screen. */}
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-paper px-5 py-3">
         <Logo />

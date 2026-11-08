@@ -17,6 +17,12 @@ export const maxDuration = 120;
 
 export const metadata: Metadata = { title: "Le mie presentazioni" };
 
+/** Greeting by the hour in Italy (the server runs in UTC). */
+function greeting() {
+  const h = Number(new Intl.DateTimeFormat("it-IT", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Rome" }).format(new Date()));
+  return h < 5 ? "Ancora sveglio" : h < 13 ? "Buongiorno" : h < 18 ? "Buon pomeriggio" : "Buonasera";
+}
+
 const dateFmt = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
@@ -30,7 +36,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">{trash ? "Cestino" : `Ciao, ${user.name}`}</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">{trash ? "Cestino" : `${greeting()}, ${user.name}`}</h1>
           <p className="mt-1 text-ink-soft">
             {trash ? "Le presentazioni nel cestino non sono visibili a nessuno." : "Riprendi da dove avevi lasciato o crea qualcosa di nuovo."}
           </p>
@@ -67,7 +73,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <div className="rounded-3xl border border-dashed border-line px-6 py-16 text-center">
           <p className="font-display text-xl font-semibold">{trash ? "Il cestino è vuoto" : q ? "Nessun risultato" : "Ancora nessuna presentazione"}</p>
           {!trash && !q && (
-            <p className="mt-2 text-ink-soft">Crea la prima: scegli un modello e aggiungi hotspot, finestre e animazioni.</p>
+            <p className="mt-2 text-ink-soft">Scrivi un argomento e Zib la prepara in un minuto, oppure parti da un modello.</p>
           )}
         </div>
       ) : (
