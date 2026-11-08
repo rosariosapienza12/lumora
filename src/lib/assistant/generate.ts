@@ -118,8 +118,8 @@ Segui questa scaletta (puoi migliorare i titoli, non cambiare l'ordine): ${reque
     system: systemPrompt(),
     prompt: `Argomento: ${request.topic.slice(0, 200)}
 Foto: ${request.photos ? "sì, usa 2-4 pagine con foto e indica photoQuery" : "no, nessun layout con foto"}.${outline}
-Scrivi 8-12 pagine piene di contenuto vero e specifico: copertina all'inizio, chiusura o contatti alla fine. Ogni pagina deve insegnare qualcosa di concreto.`,
-    maxTokens: 12000,
+Scrivi 8-10 pagine piene di contenuto vero e specifico: copertina all'inizio, chiusura o contatti alla fine. Ogni pagina deve insegnare qualcosa di concreto.`,
+    maxTokens: 9000,
     tool: "crea_presentazione",
     description: "Crea la presentazione completa: tema, disegni, parole per le foto e il contenuto di ogni pagina.",
     schema: generatedDeckSchema,
