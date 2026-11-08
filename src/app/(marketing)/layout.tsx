@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ButtonLink, Logo } from "@/components/ui";
 import { Assistant } from "@/components/assistant/assistant";
+import { ShootingStars } from "./shooting-stars";
 
 // Light field behind the glass panels: the brand's colours, drifting slowly.
 const LIGHTS = [
@@ -12,7 +13,9 @@ const LIGHTS = [
 
 export default function MarketingLayout({ children }: LayoutProps<"/">) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
+      <div className="site-grain" aria-hidden />
+      <ShootingStars />
       <div className="glass-sky" aria-hidden>
         {LIGHTS.map((l) => (
           <span key={l.color} style={{ "--light": l.color, ...l.style } as unknown as React.CSSProperties} />
@@ -45,6 +48,7 @@ export default function MarketingLayout({ children }: LayoutProps<"/">) {
         <div className="glass flex flex-wrap items-center gap-4 rounded-[28px] px-6 py-6 text-sm text-ink-soft">
           <Logo className="text-base text-ink" />
           <span>© {new Date().getFullYear()} Lumora</span>
+          <span className="text-xs">Foto da Wikimedia Commons, testi di Zib con Gemini di Google.</span>
           <nav className="ml-auto flex gap-4">
             <Link href="/privacy">Privacy</Link>
             <Link href="/cookie">Cookie</Link>

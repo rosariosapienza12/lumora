@@ -33,7 +33,17 @@ export function Hero() {
               transition={{ duration: 0.9, delay: 0.6 + i * 0.12, ease: EASE }}
               style={{ textShadow: "0 0 40px rgba(255,181,71,0.25)" }}
             >
-              {w}
+              {i === words.length - 1 ? (
+                <span className="relative inline-block">
+                  {w}
+                  {/* A hand-drawn underline: slightly uneven on purpose, like a pen stroke. */}
+                  <svg className="hero-scribble absolute -bottom-[0.14em] left-[-2%] h-[0.22em] w-[104%] overflow-visible" viewBox="0 0 320 20" preserveAspectRatio="none" aria-hidden>
+                    <path d="M4 13 C 52 7, 118 4, 176 8 S 270 16, 316 6" pathLength={1} fill="none" stroke="#ffb547" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                </span>
+              ) : (
+                w
+              )}
             </motion.span>
           ))}
         </h1>
@@ -52,7 +62,17 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.8, duration: 0.6 }}
         >
-          <GuestButton className="px-6 py-3 text-base">Prova subito, senza account</GuestButton>
+          <span className="relative">
+            <GuestButton className="px-6 py-3 text-base">Prova subito, senza account</GuestButton>
+            {/* A note in the margin, written by hand, pointing at the first action. */}
+            <span aria-hidden className="absolute right-full top-1/2 mr-3 hidden -translate-y-[85%] -rotate-6 items-end gap-1 whitespace-nowrap font-[family-name:var(--font-caveat)] text-[1.35rem] leading-none text-[#ffd98a] lg:flex">
+              si parte da qui
+              <svg width="38" height="26" viewBox="0 0 38 26" fill="none" className="translate-y-2">
+                <path d="M2 4 C 14 2, 26 8, 31 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M24 17 L 31.5 20 L 33 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </span>
           <ButtonLink href="/registrati" variant="ghost" className="px-6 py-3 text-base text-white ring-1 ring-white/30 hover:bg-white/10">
             Crea un account gratis
           </ButtonLink>
@@ -63,14 +83,14 @@ export function Hero() {
         {/* Honest proof next to the main action: what you get, with no catch. */}
         <motion.ul
           aria-label="In breve"
-          className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm text-white/70"
+          className="mt-4 flex flex-wrap justify-center gap-x-2 gap-y-1 text-sm text-white/60"
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2.1, duration: 0.6 }}
         >
-          {["Gratis", "Nessun account per provare", "Foto con licenza libera", "In italiano"].map((t) => (
-            <li key={t} className="flex items-center gap-1.5">
-              <span aria-hidden className="text-[#7fffd4]">✓</span>
+          {["Gratis", "Nessun account per provare", "Foto con licenza libera", "In italiano"].map((t, i) => (
+            <li key={t} className="flex items-center gap-2">
+              {i > 0 && <span aria-hidden className="text-white/30">·</span>}
               {t}
             </li>
           ))}

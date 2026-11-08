@@ -22,8 +22,9 @@ type OpenAiProvider = { name: "gemini" | "groq" | "openrouter"; base: string; ke
 type Provider = OpenAiProvider | { name: "anthropic"; key: string; model: string };
 
 const DEFAULT_MODEL = {
-  // An alias that always points to Google's current Flash model (free tier).
-  gemini: "gemini-flash-latest",
+  // Google's current Flash-Lite (free tier). On the live site the full Flash alias took over 20 s
+  // to start answering, Flash-Lite under 1 s, so Lite answers first and Flash is the backup.
+  gemini: "gemini-flash-lite-latest",
   groq: "llama-3.3-70b-versatile",
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   anthropic: "claude-opus-5-5",
@@ -85,7 +86,8 @@ async function openAi(p: OpenAiProvider, body: Record<string, unknown>, trace?: 
 
 /** Models tried in turn when the chosen one is unknown or overloaded (a model can be retired). */
 const BACKUP_MODELS: Record<OpenAiProvider["name"], string[]> = {
-  gemini: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-lite-latest"],
+  // gemini-2.5-flash and gemini-2.0-flash answer 404 (retired), so they are no longer tried.
+  gemini: ["gemini-flash-lite-latest", "gemini-flash-latest"],
   groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
   openrouter: ["meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-chat-v3-0324:free"],
 };

@@ -47,7 +47,7 @@ function parseAnswer(content: string) {
     .trim();
   return { text, actions: actions.slice(0, 4), suggestions };
 }
-const GREETING = "Ciao, sono Zib! 👽 Ti accompagno tra i pianeti di Lumora. Chiedimi come creare, animare o condividere una presentazione, o qualsiasi altra cosa.";
+const GREETING = "Ciao, sono Zib. Ti accompagno tra i pianeti di Lumora. Chiedimi come creare, animare o condividere una presentazione, o qualsiasi altra cosa.";
 const STORAGE_KEY = "lumora-zib";
 
 /**
@@ -395,7 +395,7 @@ export function Assistant() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="zib-hint zib-panel absolute bottom-full right-2 mb-2 whitespace-nowrap rounded-2xl rounded-br-sm px-3.5 py-2 text-sm font-medium text-white"
             >
-              Ciao! Serve una mano? 👋
+              Ciao! Serve una mano?
             </motion.button>
           )}
         </AnimatePresence>

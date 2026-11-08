@@ -16,28 +16,50 @@ const SAMPLES: { template: TemplateId; page: number; theme: ThemeId; title: stri
   { template: "viaggio", page: 1, theme: "foresta", title: "Una settimana in Sicilia", caption: "Diario di viaggio · itinerario" },
 ];
 
-const STEPS = [
-  ["Scrivi l'argomento", "«Il Colosseo», «la fotosintesi», «il mio progetto»: una riga basta."],
-  ["Zib la scrive per te", "Testi veri, numeri, domande, note per chi parla e foto libere scelte pagina per pagina."],
-  ["Personalizza e presenta", "Temi, grafici, sondaggi dal vivo con il QR code, effetti Morph. Poi condividi un link."],
-] as const;
+const OUTLINE = ["Il Colosseo", "Chi lo costruì e perché", "Com'era fatto dentro", "Gli spettacoli", "Cosa resta oggi"];
+
+/** The three steps shown as what you actually see, not described: the field, the outline, a page. */
+function Steps() {
+  const page = buildTemplate("lezione", "Il Colosseo", "carta").pages[0];
+  return (
+    <ol className="mt-8 grid items-start gap-6 md:grid-cols-[1fr_1fr_1.35fr] md:gap-8">
+      <li>
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3.5 shadow-sm">
+          <span className="block text-xs font-semibold text-ink-soft">Di cosa parla la presentazione?</span>
+          <span className="mt-1 block font-medium">
+            Il Colosseo<span className="caret text-violet" aria-hidden />
+          </span>
+        </div>
+        <p className="mt-3 text-sm text-ink-soft"><b className="text-ink">1. Scrivi l&apos;argomento.</b> Una riga basta.</p>
+      </li>
+      <li className="md:mt-8">
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3.5 font-mono text-[13px] leading-relaxed shadow-sm">
+          {OUTLINE.map((t, i) => (
+            <span key={t} className="block truncate">
+              <span className="text-ink-soft">{String(i + 1).padStart(2, "0")}</span> {t}
+            </span>
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-ink-soft"><b className="text-ink">2. Zib la scrive.</b> Testi, numeri, note e foto, pagina per pagina.</p>
+      </li>
+      <li className="md:-mt-2">
+        <div className="-rotate-1 overflow-hidden rounded-2xl border border-line bg-paper shadow-lg">
+          <SlideThumb page={page} />
+        </div>
+        <p className="mt-3 text-sm text-ink-soft"><b className="text-ink">3. La rifinisci e la presenti.</b> Temi, grafici, sondaggi col QR code.</p>
+      </li>
+    </ol>
+  );
+}
 
 export function Showcase() {
   return (
     <section className="mx-auto w-[calc(100%-1.5rem)] max-w-7xl scroll-mt-24 py-10" id="esempi">
       <div className="glass rounded-[36px] px-6 py-12 sm:px-12">
         <h2 className="max-w-3xl font-display text-4xl font-bold tracking-tight sm:text-5xl">Da una riga a una presentazione completa.</h2>
-        <ol className="mt-8 grid gap-4 md:grid-cols-3">
-          {STEPS.map(([title, body], i) => (
-            <li key={title} className="rounded-3xl border border-line bg-paper/70 p-6">
-              <span className="font-display text-sm font-bold text-violet">0{i + 1}</span>
-              <h3 className="mt-1 font-display text-xl font-semibold">{title}</h3>
-              <p className="mt-1.5 text-ink-soft">{body}</p>
-            </li>
-          ))}
-        </ol>
+        <Steps />
         <h3 className="mt-12 font-display text-2xl font-semibold">Pagine vere, fatte con Lumora</h3>
-        <p className="mt-1 text-ink-soft">Nessuna illustrazione: sono pagine generate dai modelli e dai temi che trovi nell&apos;editor.</p>
+        <p className="mt-1 text-ink-soft">Non sono screenshot: il codice dell&apos;editor le disegna mentre scorri, con i modelli e i temi che userai anche tu.</p>
         <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SAMPLES.map((s) => {
             const doc = buildTemplate(s.template, s.title, s.theme);

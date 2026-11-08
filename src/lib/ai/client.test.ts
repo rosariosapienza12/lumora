@@ -21,7 +21,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("free AI client", () => {
   it("picks the free Gemini provider when its key is set", () => {
-    expect(provider()).toMatchObject({ name: "gemini", model: "gemini-flash-latest" });
+    expect(provider()).toMatchObject({ name: "gemini", model: "gemini-flash-lite-latest" });
   });
 
   it("streams an OpenAI-compatible answer chunk by chunk", async () => {
@@ -60,7 +60,7 @@ describe("backup models", () => {
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { arguments: '{"ok":true}' } }] } }] })));
     expect(await chatJson({ system: "s", prompt: "p", maxTokens: 5, tool: "t", description: "d", schema: z.object({ ok: z.boolean() }) })).toEqual({ ok: true });
-    expect(JSON.parse(String(fetch.mock.calls[1][1]?.body)).model).toBe("gemini-2.5-flash");
+    expect(JSON.parse(String(fetch.mock.calls[1][1]?.body)).model).toBe("gemini-flash-latest");
   });
 });
 

@@ -348,7 +348,7 @@ export function PlanetTour() {
               >
                 <span
                   aria-hidden
-                  className="absolute inset-0 rounded-full border transition-all duration-500"
+                  className="absolute inset-0 rounded-full border transition-[border-color,box-shadow] duration-500"
                   style={{
                     borderColor: i === active ? f.glow : "transparent",
                     boxShadow: i === active ? `0 0 16px ${f.glow}90, inset 0 0 10px ${f.glow}50` : "none",
