@@ -57,10 +57,11 @@ const anthropicClient = (key: string) => (anthropic ??= new Anthropic({ apiKey: 
 /** Attempts made for one answer: "model:status:seconds", for the X-Zib-Trace header (no secrets). */
 export type Trace = string[];
 
-async function openAi(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace) {
-  // Streams must start within 20 s (then the backup model is tried); whole answers get 90 s.
+async function openAi(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace, cancel?: AbortSignal) {
+  // Streams must start within 15 s; whole answers get 90 s.
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), body.stream ? 20_000 : 90_000);
+  const timer = setTimeout(() => ctrl.abort(), body.stream ? 15_000 : 90_000);
+  cancel?.addEventListener("abort", () => ctrl.abort());
   const t0 = Date.now();
   try {
     const res = await fetch(`${p.base}/chat/completions`, {
@@ -93,7 +94,35 @@ const BACKUP_MODELS: Record<OpenAiProvider["name"], string[]> = {
 };
 
 /** Calls the provider, moving on to a backup model on 404 (retired model) or 429/503 (busy). */
+/**
+ * Streams: Google's free tier sometimes stalls for 20 s or more on one request while the next
+ * answers in under a second. So when a model has not started within 4 s, another attempt starts
+ * alongside it (the backup model, then the first model again) and the first to answer wins.
+ */
+async function hedged(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace) {
+  const first = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
+  const models = [...first, first[0]].slice(0, 3);
+  const cancels = models.map(() => new AbortController());
+  let done = false;
+  const attempt = async (model: string, i: number) => {
+    if (i > 0) await new Promise((r) => setTimeout(r, i * 4000));
+    if (done) throw new Error(`${p.name} 499: not needed`);
+    return { res: await openAi({ ...p, model }, body, trace, cancels[i].signal), i };
+  };
+  try {
+    const { res, i } = await Promise.any(models.map(attempt));
+    done = true;
+    // Stop the slower attempts still waiting; the winner keeps streaming.
+    cancels.forEach((c, j) => j !== i && c.abort());
+    return res;
+  } catch (err) {
+    done = true;
+    throw err instanceof AggregateError ? err.errors.at(-1) : err;
+  }
+}
+
 async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown>, trace?: Trace) {
+  if (body.stream) return hedged(p, body, trace);
   const models = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
   // Gemini "thinks" before answering, which adds seconds and is not needed to write slides:
   // ask for the least thinking the model accepts, falling back if it refuses the setting.
