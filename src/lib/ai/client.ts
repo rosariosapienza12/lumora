@@ -76,7 +76,9 @@ async function openAiWithBackups(p: OpenAiProvider, body: Record<string, unknown
   const models = [p.model, ...BACKUP_MODELS[p.name].filter((m) => m !== p.model)];
   // Gemini "thinks" before answering, which adds seconds and is not needed to write slides:
   // ask for the least thinking the model accepts, falling back if it refuses the setting.
-  const efforts: (string | undefined)[] = p.name === "gemini" ? ["none", "low", undefined] : [undefined];
+  // Asking Gemini to skip thinking (reasoning_effort "none"/"low") made answers far slower on the
+  // live site (50-85 s instead of 4-5 s), so the model's default is used.
+  const efforts: (string | undefined)[] = [undefined];
   let last: unknown;
   for (const model of models) {
     for (const effort of efforts) {
